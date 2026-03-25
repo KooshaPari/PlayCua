@@ -1,0 +1,427 @@
+{
+  "openrpc": "1.2.6",
+  "info": {
+    "title": "bare-cua-native",
+    "version": "0.1.0",
+    "description": "JSON-RPC 2.0 API for computer-use automation. All methods are invoked over stdio (NDJSON). Logs go to stderr; never to stdout.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "methods": [
+    {
+      "name": "ping",
+      "summary": "Health check — returns server version.",
+      "params": [],
+      "result": {
+        "name": "PingResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "version"],
+          "properties": {
+            "ok": { "type": "boolean", "const": true },
+            "version": { "type": "string", "description": "Semver string from CARGO_PKG_VERSION" }
+          }
+        }
+      }
+    },
+    {
+      "name": "screenshot",
+      "summary": "Capture a screenshot of a monitor or window.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "window_title": {
+                "type": "string",
+                "description": "Case-insensitive substring of the target window title. If omitted, captures the monitor."
+              },
+              "monitor": {
+                "type": "integer",
+                "description": "Zero-based monitor index. Defaults to 0.",
+                "default": 0
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "ScreenshotResult",
+        "schema": {
+          "type": "object",
+          "required": ["data", "width", "height", "format"],
+          "properties": {
+            "data": { "type": "string", "description": "Base64-encoded PNG bytes." },
+            "width": { "type": "integer" },
+            "height": { "type": "integer" },
+            "format": { "type": "string", "const": "png" }
+          }
+        }
+      }
+    },
+    {
+      "name": "input.key",
+      "summary": "Press, hold, or release a keyboard key.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["key", "action"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "Key name (e.g. 'a', 'return', 'escape', 'f1', 'ctrl', 'shift', 'space', 'tab', etc.)"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["press", "down", "up"],
+                "description": "press = full click; down = key-down only; up = key-up only."
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "input.type",
+      "summary": "Type a string of text using the OS input system.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "description": "The text to type." }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "input.click",
+      "summary": "Move the mouse to (x,y) and perform a button action.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["x", "y", "button", "action"],
+            "properties": {
+              "x": { "type": "integer", "description": "Absolute screen X coordinate." },
+              "y": { "type": "integer", "description": "Absolute screen Y coordinate." },
+              "button": { "type": "string", "enum": ["left", "right", "middle"] },
+              "action": { "type": "string", "enum": ["click", "down", "up"] }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "input.scroll",
+      "summary": "Scroll at (x,y) in a given direction.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["x", "y", "direction"],
+            "properties": {
+              "x": { "type": "integer" },
+              "y": { "type": "integer" },
+              "direction": { "type": "string", "enum": ["up", "down", "left", "right"] },
+              "amount": { "type": "integer", "description": "Scroll ticks. Defaults to 3.", "default": 3 }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "input.move",
+      "summary": "Move the mouse cursor to an absolute screen position.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "integer" },
+              "y": { "type": "integer" }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "windows.list",
+      "summary": "List all top-level windows visible to the OS.",
+      "params": [],
+      "result": {
+        "name": "WindowList",
+        "schema": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/WindowInfo" }
+        }
+      }
+    },
+    {
+      "name": "windows.focus",
+      "summary": "Bring a window to the foreground by its platform handle.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["hwnd"],
+            "properties": {
+              "hwnd": { "type": "integer", "description": "Platform window handle (from windows.list)." }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "windows.find",
+      "summary": "Find the first window matching title substring and/or PID.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "Case-insensitive substring of window title." },
+              "pid": { "type": "integer", "description": "Exact process ID match." }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "WindowOrNull",
+        "schema": {
+          "oneOf": [
+            { "$ref": "#/components/schemas/WindowInfo" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "process.launch",
+      "summary": "Spawn a new process and return its PID.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "description": "Absolute or relative path to the executable." },
+              "args": { "type": "array", "items": { "type": "string" }, "description": "Command-line arguments." },
+              "cwd": { "type": "string", "description": "Working directory for the process." }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "LaunchResult",
+        "schema": {
+          "type": "object",
+          "required": ["pid"],
+          "properties": { "pid": { "type": "integer" } }
+        }
+      }
+    },
+    {
+      "name": "process.kill",
+      "summary": "Terminate a process by PID.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["pid"],
+            "properties": { "pid": { "type": "integer" } }
+          }
+        }
+      ],
+      "result": {
+        "name": "OkResult",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": { "ok": { "type": "boolean", "const": true } }
+        }
+      }
+    },
+    {
+      "name": "process.status",
+      "summary": "Query whether a process is running and its exit code if done.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["pid"],
+            "properties": { "pid": { "type": "integer" } }
+          }
+        }
+      ],
+      "result": {
+        "name": "StatusResult",
+        "schema": {
+          "type": "object",
+          "required": ["running"],
+          "properties": {
+            "running": { "type": "boolean" },
+            "exit_code": { "type": ["integer", "null"], "description": "Exit code if the process has exited." }
+          }
+        }
+      }
+    },
+    {
+      "name": "analysis.diff",
+      "summary": "Compute the fraction of pixels that differ between two PNG images.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["image_a", "image_b"],
+            "properties": {
+              "image_a": { "type": "string", "description": "Base64-encoded PNG." },
+              "image_b": { "type": "string", "description": "Base64-encoded PNG." },
+              "threshold": {
+                "type": "number",
+                "description": "change_ratio threshold to set 'changed'. Defaults to 0.02.",
+                "default": 0.02
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "DiffResult",
+        "schema": {
+          "type": "object",
+          "required": ["changed", "change_ratio"],
+          "properties": {
+            "changed": { "type": "boolean" },
+            "change_ratio": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Fraction of pixels that differ (RGB channels only)."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "analysis.hash",
+      "summary": "Compute a BLAKE3 hash of the normalized pixel data of a PNG image.",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["image"],
+            "properties": {
+              "image": { "type": "string", "description": "Base64-encoded PNG." }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "HashResult",
+        "schema": {
+          "type": "object",
+          "required": ["hash"],
+          "properties": {
+            "hash": { "type": "string", "description": "Hex-encoded BLAKE3 hash of RGBA8 pixel data." }
+          }
+        }
+      }
+    }
+  ],
+  "components": {
+    "schemas": {
+      "WindowInfo": {
+        "type": "object",
+        "required": ["hwnd", "title", "pid", "x", "y", "width", "height", "visible"],
+        "properties": {
+          "hwnd": { "type": "integer", "description": "Platform window handle." },
+          "title": { "type": "string" },
+          "pid": { "type": "integer" },
+          "x": { "type": "integer" },
+          "y": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "visible": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

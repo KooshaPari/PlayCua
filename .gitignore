@@ -1,0 +1,51 @@
+# Rust build artifacts
+target/
+*.pdb
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# C# / .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.nupkg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / temp
+*.log
+*.tmp
+tmp/
+temp/
+
+# Release binaries (add specific ones to track if needed)
+bare-cua-native
+bare-cua-native.exe
