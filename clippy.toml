@@ -1,0 +1,3 @@
+# Clippy configuration for bare-cua
+
+avoid-breaking-exported-api = false
