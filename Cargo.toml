@@ -19,7 +19,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 async-trait = "0.1"
 base64 = "0.22"
 image = { version = "=0.25.2", default-features = false, features = ["png", "jpeg"] }
-blake3 = "=1.5.4"
+blake3 = "=1.8.4"
 fast_image_resize = "4"
 enigo = { version = "0.6", features = [] }
 xcap = "0.2"
