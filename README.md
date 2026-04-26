@@ -295,4 +295,4 @@ registry.register(Box::new(MyPlugin));
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
