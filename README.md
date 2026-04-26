@@ -95,7 +95,10 @@ bare-cua/
 
 - **CLAUDE.md** — Development guidelines and patterns
 - **docs/ARCHITECTURE.md** — Design and architecture
-- **License**: MIT
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
 
 ---
 
