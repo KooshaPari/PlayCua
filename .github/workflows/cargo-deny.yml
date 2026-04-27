@@ -6,12 +6,16 @@ on:
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
+      - '.github/workflows/cargo-deny.yml'
   push:
     branches:
-      - main
+      - master
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
+      - '.github/workflows/cargo-deny.yml'
   schedule:
     - cron: '0 9 * * 1'
 
