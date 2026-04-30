@@ -22,5 +22,5 @@ image = { version = "=0.25.10", default-features = false, features = ["png", "jp
 blake3 = "=1.8.5"
 fast_image_resize = "6"
 enigo = { version = "0.6", features = [] }
-xcap = "0.9"
+xcap = "0.8"
 
