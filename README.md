@@ -1,5 +1,7 @@
 # bare-cua
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 A heavy fork of [trycua/cua](https://github.com/trycua/cua) that strips the VM
 layer and replaces the `computer-server` with a **native Rust binary** that
 communicates via **stdio JSON-RPC 2.0**.
