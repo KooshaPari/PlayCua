@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## 📚 Documentation
 - Docs(wave-4): scaffold FUNCTIONAL_REQUIREMENTS.md with 6 stubs (`b86c3a6`)
 - Docs(fr): scaffold FUNCTIONAL_REQUIREMENTS.md with 2 FR stubs (`ae7dd72`)

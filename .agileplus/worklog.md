@@ -1,5 +1,7 @@
 # bare-cua — Worklog
 
+
+**Category: INTEGRATION**
 ## 2026-04-02
 
 ### Batch 17 Remediation
