@@ -1,5 +1,7 @@
 # bare-cua
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 Minimal headless browser automation and device control framework enabling programmatic UI interaction without external service dependencies.
 
 ## Overview
