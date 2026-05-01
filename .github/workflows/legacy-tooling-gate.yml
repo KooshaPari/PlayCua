@@ -20,17 +20,17 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Checkout phenotype/repos for shared tools
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KooshaPari/phenoShared
           path: phenotype-repos
           sparse-checkout: tooling/legacy-enforcement
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: '3.12'
 
@@ -48,14 +48,14 @@ jobs:
         continue-on-error: true
 
       - name: Upload scan report (JSON)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: legacy-tooling-report-json
           path: legacy_tooling_report.json
           retention-days: 30
 
       - name: Upload scan report (Markdown)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: legacy-tooling-report-md
           path: legacy_tooling_report.md
@@ -63,7 +63,7 @@ jobs:
 
       - name: Comment PR with findings
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553
         with:
           script: |
             const fs = require('fs');
