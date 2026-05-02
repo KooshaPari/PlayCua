@@ -7,6 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 /// JSON-RPC 2.0 request from caller.
 #[derive(Debug, Deserialize)]
 pub struct Request {
+    #[allow(dead_code)]
     pub jsonrpc: String,
     pub id: serde_json::Value,
     pub method: String,

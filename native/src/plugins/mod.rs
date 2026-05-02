@@ -9,6 +9,7 @@ use serde_json::Value;
 
 /// A plugin that handles a single JSON-RPC method name.
 #[async_trait]
+#[allow(dead_code)]
 pub trait MethodPlugin: Send + Sync {
     /// The exact method name this plugin handles (e.g. "custom.foo").
     fn method_name(&self) -> &'static str;
@@ -19,18 +20,21 @@ pub trait MethodPlugin: Send + Sync {
 }
 
 /// Registry of all registered plugins, keyed by method name.
+#[allow(dead_code)]
 pub struct PluginRegistry {
     plugins: Vec<Box<dyn MethodPlugin>>,
 }
 
 impl PluginRegistry {
     /// Create an empty registry.
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self { plugins: Vec::new() }
     }
 
     /// Register a plugin. If a plugin with the same method name is already
     /// registered, the new one replaces it.
+    #[allow(dead_code)]
     pub fn register(&mut self, plugin: Box<dyn MethodPlugin>) {
         if let Some(pos) = self.plugins.iter().position(|p| p.method_name() == plugin.method_name()) {
             self.plugins[pos] = plugin;
@@ -40,6 +44,7 @@ impl PluginRegistry {
     }
 
     /// Find the plugin registered for `method`, if any.
+    #[allow(dead_code)]
     pub fn find(&self, method: &str) -> Option<&dyn MethodPlugin> {
         self.plugins
             .iter()
@@ -48,11 +53,13 @@ impl PluginRegistry {
     }
 
     /// Returns the number of registered plugins.
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.plugins.len()
     }
 
     /// Returns true if no plugins are registered.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.plugins.is_empty()
     }

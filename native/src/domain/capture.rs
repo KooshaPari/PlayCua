@@ -11,10 +11,12 @@ pub struct Frame {
 
 /// Identifies a physical monitor by index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct Monitor(pub u32);
 
 /// Opaque handle to an OS window (HWND on Windows, XID on Linux, etc.).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct WindowHandle(pub usize);
 
 /// Errors that can arise during screen capture.

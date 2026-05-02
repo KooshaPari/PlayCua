@@ -30,6 +30,7 @@ impl WindowPort for NSWorkspaceAdapter {
         tokio::task::spawn_blocking(|| -> Result<Vec<WindowInfo>, WindowError> {
             let windows = xcap::Window::all()
                 .map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
+            #[allow(clippy::unnecessary_filter_map)]
             Ok(windows
                 .into_iter()
                 .filter_map(|w| {

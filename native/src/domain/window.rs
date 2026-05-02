@@ -27,6 +27,7 @@ pub struct WindowFilter {
 #[derive(Debug, thiserror::Error)]
 pub enum WindowError {
     #[error("window not found")]
+    #[allow(dead_code)]
     NotFound,
     #[error("enumeration failed: {0}")]
     EnumerationFailed(String),

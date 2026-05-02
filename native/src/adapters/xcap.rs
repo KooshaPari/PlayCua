@@ -54,7 +54,7 @@ impl CapturePort for XcapCapture {
                 .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
             let window = windows
                 .into_iter()
-                .find(|w| w.title().map_or(false, |t| t.to_lowercase().contains(&title.to_lowercase())))
+                .find(|w| w.title().is_ok_and(|t| t.to_lowercase().contains(&title.to_lowercase())))
                 .ok_or_else(|| CaptureError::WindowNotFound(title.clone()))?;
             let img = window
                 .capture_image()
