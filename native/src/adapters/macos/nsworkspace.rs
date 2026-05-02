@@ -32,13 +32,13 @@ impl WindowPort for NSWorkspaceAdapter {
                 .map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
             Ok(windows
                 .into_iter()
-                .filter_map(|w| {
+                .map(|w| {
                     let title = w.title().unwrap_or_default();
                     let x = w.x().unwrap_or(0);
                     let y = w.y().unwrap_or(0);
                     let width = w.width().unwrap_or(0) as i32;
                     let height = w.height().unwrap_or(0) as i32;
-                    Some(WindowInfo {
+                    WindowInfo {
                         hwnd: w.id().unwrap_or(0) as usize,
                         title,
                         pid: w.pid().unwrap_or(0),
@@ -47,7 +47,7 @@ impl WindowPort for NSWorkspaceAdapter {
                         width,
                         height,
                         visible: true,
-                    })
+                    }
                 })
                 .collect())
         })

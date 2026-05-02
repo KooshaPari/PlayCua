@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 //! bare-cua-native: stdio JSON-RPC 2.0 server for computer-use automation.
 //!
 //! Reads newline-delimited JSON-RPC 2.0 requests from stdin, dispatches to

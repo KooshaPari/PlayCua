@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 //! bare-cua-native library entry point.
 //!
 //! Re-exports all public modules so integration tests and external crates

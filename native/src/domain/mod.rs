@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 //! Domain layer — pure business types with zero external crate imports.
 //!
 //! All types here depend only on `std` and `serde` (for serialization contracts).
