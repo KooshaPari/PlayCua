@@ -7,6 +7,7 @@
 
 # bare-cua
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
 [![Build](https://img.shields.io/github/actions/workflow/status/KooshaPari/PlayCua/quality-gate.yml?branch=master&label=build)](https://github.com/KooshaPari/PlayCua/actions)
 [![Release](https://img.shields.io/github/v/release/KooshaPari/PlayCua?include_prereleases&sort=semver)](https://github.com/KooshaPari/PlayCua/releases)
 [![License](https://img.shields.io/github/license/KooshaPari/PlayCua)](LICENSE)
