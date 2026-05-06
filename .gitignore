@@ -1,0 +1,42 @@
+# Build outputs
+/dist
+/build
+/target
+/out
+/.next
+/.nuxt
+/.astro
+
+# Dependencies
+/node_modules
+/vendor
+/.venv
+/venv
+/env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+/.idea
+/.vscode
+*.swp
+*.swo
+
+# Test coverage
+/coverage
+/.nyc_output
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+.env
+.env.local
+.env.*.local
+
+# Lock files (some repos manage these intentionally)
+/package-lock.json
+/yarn.lock
+/pnpm-lock.yaml
