@@ -23,11 +23,11 @@ jobs:
       actions: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Run Scorecard
-        uses: ossf/scorecard-action@979ba56f547dcc27b06a9ab51bc0ec3e009f8787
+        uses: ossf/scorecard-action@99c53751e09b9529366343771cc321ec74e9bd3d
         with:
           results_file: results.sarif
           results_format: sarif
