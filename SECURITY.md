@@ -1,31 +1,26 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Reporting Vulnerability
 
-We take security seriously. **Please do not file public issues for security vulnerabilities.**
+If you discover security vulnerability, please follow responsible disclosure process:
 
-To report a vulnerability, use GitHub's private vulnerability reporting:
-
-  https://github.com/KooshaPari/PlayCua/security/advisories/new
-
-Provide:
-- Affected version(s) and component(s)
-- Reproduction steps or proof-of-concept
-- Impact assessment (confidentiality / integrity / availability)
-- Suggested mitigation if known
-
-We aim to acknowledge within 72 hours and provide a remediation timeline within 7 days.
+1. **Do NOT** open public GitHub issue security vulnerabilities.
+2. Email maintainers directly [maintainer email] GitHub Security Advisories feature.
+3. Provide detailed information vulnerability, including:
+   - Description issue
+   - Steps reproduce
+   - Potential impact
+   - Any suggested fixes (if applicable)
 
 ## Supported Versions
 
 | Version | Supported |
 |---------|-----------|
-| latest  | yes       |
-| older   | best-effort |
+| 1.0.0   | :white_check_mark: |
+| <1.0.0  | :x: |
 
-## Public vs Private Disclosure
+## Response Timeline
 
-- **Private**: vulnerabilities affecting confidentiality, integrity, or availability — use the advisory link above.
-- **Public**: hardening suggestions, non-exploitable defects, dependency hygiene — file a normal issue.
-
-Coordinated disclosure is preferred. We will credit reporters in the advisory unless anonymity is requested.
+**Acknowledgment**: Within 48 hours
+**Initial Assessment**: Within 7 days
+**Fix Timeline**: Varies based severity
