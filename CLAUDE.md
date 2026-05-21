@@ -8,10 +8,10 @@ Extends parent governance. See the following for canonical definitions:
 
 ## Project Overview
 
-- **Name:** PlayCua
-- **Description:** Device simulation framework
-- **Location:** /Users/kooshapari/CodeProjects/Phenotype/repos/PlayCua
-- **Language Stack:** Rust
+- **Name:** PlayCua (a.k.a. bare-cua)
+- **Description:** Native Rust computer automation service exposing JSON-RPC over stdio (plus Python/C# bindings and tests)
+- **Location:** `/Users/kooshapari/CodeProjects/Phenotype/repos/playcua`
+- **Language Stack:** Rust (core), with Python and C# bindings
 - **Status:** Active
 
 ## AgilePlus Mandate
