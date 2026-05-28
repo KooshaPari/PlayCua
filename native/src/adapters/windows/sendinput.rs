@@ -67,7 +67,7 @@ pub fn inject_to_hwnd(hwnd_value: isize, key_str: &str) -> Result<(), InputError
 
     unsafe {
         PostMessageW(
-            hwnd,
+            Some(hwnd),
             WM_KEYDOWN,
             windows::Win32::Foundation::WPARAM(vk as usize),
             windows::Win32::Foundation::LPARAM(lparam_down),
@@ -75,7 +75,7 @@ pub fn inject_to_hwnd(hwnd_value: isize, key_str: &str) -> Result<(), InputError
         .map_err(|e| InputError::InjectionFailed(format!("PostMessageW WM_KEYDOWN: {e}")))?;
         std::thread::sleep(std::time::Duration::from_millis(50));
         PostMessageW(
-            hwnd,
+            Some(hwnd),
             WM_KEYUP,
             windows::Win32::Foundation::WPARAM(vk as usize),
             windows::Win32::Foundation::LPARAM(lparam_up),

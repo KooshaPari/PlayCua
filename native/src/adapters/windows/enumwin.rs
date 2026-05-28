@@ -60,7 +60,7 @@ impl WindowPort for EnumWindowsAdapter {
 fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
     use std::sync::{Arc, Mutex};
     use windows::Win32::{
-        Foundation::{BOOL, HWND, LPARAM},
+        Foundation::{HWND, LPARAM},
         UI::WindowsAndMessaging::{
             EnumWindows, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId,
             IsWindowVisible,
@@ -70,14 +70,14 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
     let results: Arc<Mutex<Vec<WindowInfo>>> = Arc::new(Mutex::new(Vec::new()));
     let results_clone = results.clone();
 
-    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
         let results_ptr = lparam.0 as *const Arc<Mutex<Vec<WindowInfo>>>;
         let results = unsafe { &*results_ptr };
 
         let mut title_buf = [0u16; 512];
         let title_len = unsafe { GetWindowTextW(hwnd, &mut title_buf) };
         if title_len == 0 {
-            return BOOL(1);
+            return 1;
         }
         let title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
 
@@ -103,7 +103,7 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
         if let Ok(mut v) = results.lock() {
             v.push(info);
         }
-        BOOL(1)
+        1
     }
 
     let ptr = &results_clone as *const Arc<Mutex<Vec<WindowInfo>>>;
