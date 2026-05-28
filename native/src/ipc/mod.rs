@@ -4,4 +4,4 @@ pub mod dispatcher;
 mod mod_types;
 
 // Re-export wire types at the ipc:: level for convenience.
-pub use mod_types::{read_request, write_response, Request, Response, RpcError};
+pub use mod_types::{read_request, write_response, Response};

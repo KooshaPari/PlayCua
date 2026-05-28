@@ -44,6 +44,7 @@ impl CapturePort for XcapCapture {
     }
 
     #[instrument(name = "xcap.capture_window", skip(self))]
+    #[allow(clippy::unnecessary_map_or)]
     async fn capture_window(&self, title: Option<&str>) -> Result<Frame, CaptureError> {
         let title_owned = title.map(|t| t.to_string());
         tokio::task::spawn_blocking(move || -> Result<Frame, CaptureError> {
@@ -54,7 +55,7 @@ impl CapturePort for XcapCapture {
                 .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
             let window = windows
                 .into_iter()
-                .find(|w| w.title().map_or(false, |t| t.to_lowercase().contains(&title.to_lowercase())))
+                .find(|w| w.title().ok().map_or(false, |t| t.to_lowercase().contains(&title.to_lowercase())))
                 .ok_or_else(|| CaptureError::WindowNotFound(title.clone()))?;
             let img = window
                 .capture_image()
