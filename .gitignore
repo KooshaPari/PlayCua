@@ -49,3 +49,11 @@ temp/
 # Release binaries (add specific ones to track if needed)
 bare-cua-native
 bare-cua-native.exe
+
+# ===== Standard auto-generated hygiene ignores (do not edit manually) =====
+.env
+.env.*
+!.env.example
+node_modules/
+coverage/
+# ===== End standard hygiene ignores =====
