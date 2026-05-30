@@ -1,10 +1,29 @@
 # bare-cua
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
+[![Rust](https://img.shields.io/badge/rust-native-orange.svg)](#)
+[![Transport: stdio JSON-RPC 2.0](https://img.shields.io/badge/transport-stdio%20JSON--RPC%202.0-success.svg)](#json-rpc-protocol)
+
 A heavy fork of [trycua/cua](https://github.com/trycua/cua) that strips the VM
 layer and replaces the `computer-server` with a **native Rust binary** that
 communicates via **stdio JSON-RPC 2.0**.
 
 No Docker. No VM. No network socket. Just a subprocess pipe.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller (Py / C#)
+    participant B as bare-cua-native (Rust)
+    participant OS as Host OS APIs
+    C->>B: stdin NDJSON {method, params}
+    B->>OS: adapter call (capture / input / window)
+    OS-->>B: native result
+    B-->>C: stdout NDJSON {result | error}
+    Note over B: structured tracing → stderr
+```
+
+> [!EMBED] STUB — live capture/click demo
+> A short screen recording of `screenshot` → `left_click` → `type_text` driving a real window belongs here. Pending rich-embed pipeline (#966).
 
 ---
 
