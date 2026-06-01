@@ -32,22 +32,22 @@ impl WindowPort for NSWorkspaceAdapter {
                 .map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
             Ok(windows
                 .into_iter()
-                .filter_map(|w| {
-                    let title = w.title().unwrap_or_default();
-                    let x = w.x().unwrap_or(0);
-                    let y = w.y().unwrap_or(0);
-                    let width = w.width().unwrap_or(0) as i32;
-                    let height = w.height().unwrap_or(0) as i32;
-                    Some(WindowInfo {
-                        hwnd: w.id().unwrap_or(0) as usize,
+                .map(|w| {
+                    let title = w.title().ok().unwrap_or_default();
+                    let x = w.x().ok().unwrap_or(0);
+                    let y = w.y().ok().unwrap_or(0);
+                    let width = w.width().ok().unwrap_or(0) as i32;
+                    let height = w.height().ok().unwrap_or(0) as i32;
+                    WindowInfo {
+                        hwnd: w.id().ok().unwrap_or(0) as usize,
                         title,
-                        pid: w.pid().unwrap_or(0),
+                        pid: w.pid().ok().unwrap_or(0),
                         x,
                         y,
                         width,
                         height,
                         visible: true,
-                    })
+                    }
                 })
                 .collect())
         })
@@ -59,12 +59,12 @@ impl WindowPort for NSWorkspaceAdapter {
     async fn find_window(&self, filter: WindowFilter) -> Result<Option<WindowInfo>, WindowError> {
         let all = self.list_windows().await?;
         let found = all.into_iter().find(|w| {
-            let title_match = filter
-                .title
+            let title_lower = filter.title.as_ref().map(|t| t.to_lowercase());
+            let pid_match = filter.pid.map_or(true, |pid| w.pid == pid);
+            let title_ok = title_lower
                 .as_ref()
-                .map_or(true, |t| w.title.to_lowercase().contains(&t.to_lowercase()));
-            let pid_match = filter.pid.map_or(true, |p| w.pid == p);
-            title_match && pid_match
+                .map_or(true, |t| w.title.to_lowercase().contains(t));
+            title_ok && pid_match
         });
         Ok(found)
     }
