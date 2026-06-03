@@ -1,3 +1,6 @@
+> **Work state:** ACTIVE · **Progress:** `█████░░░░░ 50%`
+> Bare-metal computer-use agent (Rust+Python) · updated 2026-06-02
+
 > **Pinned references (Phenotype-org)**
 > - MSRV: see rust-toolchain.toml
 > - cargo-deny config: see deny.toml
