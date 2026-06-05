@@ -22,27 +22,27 @@ pub async fn focus_window(hwnd: i64) -> Result<()> {
 
 fn enum_windows_sync() -> Result<Vec<WindowInfo>> {
     use std::sync::{Arc, Mutex};
+    use windows::core::BOOL;
     use windows::Win32::{
         Foundation::{HWND, LPARAM},
         UI::WindowsAndMessaging::{
-            EnumWindows, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId,
-            IsWindowVisible, WNDENUMPROC,
+            EnumWindows, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
+            WNDENUMPROC,
         },
     };
 
     let results: Arc<Mutex<Vec<WindowInfo>>> = Arc::new(Mutex::new(Vec::new()));
     let results_clone = results.clone();
 
-    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let results_ptr = lparam.0 as *const Arc<Mutex<Vec<WindowInfo>>>;
         let results = unsafe { &*results_ptr };
 
         // Get title.
         let mut title_buf = [0u16; 512];
-        let title_len =
-            unsafe { GetWindowTextW(hwnd, &mut title_buf) };
+        let title_len = unsafe { GetWindowTextW(hwnd, &mut title_buf) };
         if title_len == 0 {
-            return 1; // skip untitled
+            return BOOL(1); // skip untitled
         }
         let title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
 
@@ -70,15 +70,12 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>> {
         if let Ok(mut v) = results.lock() {
             v.push(info);
         }
-        1 // continue enumeration
+        BOOL(1) // continue enumeration
     }
 
     let ptr = &results_clone as *const Arc<Mutex<Vec<WindowInfo>>>;
     unsafe {
-        EnumWindows(
-            Some(enum_proc),
-            LPARAM(ptr as isize),
-        ).context("EnumWindows failed")?;
+        EnumWindows(Some(enum_proc), LPARAM(ptr as isize)).context("EnumWindows failed")?;
     }
 
     let vec = Arc::try_unwrap(results)
@@ -89,13 +86,10 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>> {
 }
 
 fn set_foreground_sync(hwnd: i64) -> Result<()> {
-    use windows::Win32::{
-        Foundation::HWND,
-        UI::WindowsAndMessaging::SetForegroundWindow,
-    };
+    use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::SetForegroundWindow};
     let hwnd = HWND(hwnd as *mut core::ffi::c_void);
     unsafe {
-        SetForegroundWindow(hwnd);
+        let _ = SetForegroundWindow(hwnd);
     }
     Ok(())
 }
