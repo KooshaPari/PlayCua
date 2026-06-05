@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+publish = false
 
 [[bin]]
 name = "bare-cua-native"
@@ -25,7 +26,6 @@ async-trait.workspace = true
 base64.workspace = true
 image.workspace = true
 blake3.workspace = true
-fast_image_resize.workspace = true
 enigo.workspace = true
 xcap.workspace = true
 libc = "0.2"
