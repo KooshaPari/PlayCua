@@ -86,10 +86,16 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>> {
 }
 
 fn set_foreground_sync(hwnd: i64) -> Result<()> {
-    use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::SetForegroundWindow};
+    use windows::Win32::{
+        Foundation::{GetLastError, HWND},
+        UI::WindowsAndMessaging::SetForegroundWindow,
+    };
     let hwnd = HWND(hwnd as *mut core::ffi::c_void);
     unsafe {
-        let _ = SetForegroundWindow(hwnd);
+        let result = SetForegroundWindow(hwnd);
+        if !result.as_bool() {
+            anyhow::bail!("SetForegroundWindow failed: {:?}", GetLastError());
+        }
     }
     Ok(())
 }

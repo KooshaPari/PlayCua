@@ -128,9 +128,18 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
 
 #[cfg(target_os = "windows")]
 fn set_foreground_sync(hwnd: usize) -> Result<(), WindowError> {
-    use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::SetForegroundWindow};
+    use windows::Win32::{
+        Foundation::{GetLastError, HWND},
+        UI::WindowsAndMessaging::SetForegroundWindow,
+    };
     unsafe {
-        let _ = SetForegroundWindow(HWND(hwnd as *mut core::ffi::c_void));
+        let result = SetForegroundWindow(HWND(hwnd as *mut core::ffi::c_void));
+        if !result.as_bool() {
+            return Err(WindowError::Failed(format!(
+                "SetForegroundWindow failed for hwnd {hwnd}: {:?}",
+                GetLastError()
+            )));
+        }
     }
     Ok(())
 }
