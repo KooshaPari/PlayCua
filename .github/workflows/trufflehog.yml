@@ -15,9 +15,9 @@ jobs:
   trufflehog:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@ab5dd03ee012e5f372e2ba82c4813c2ba1331261
+      - uses: trufflesecurity/trufflehog@75add79b929b263dae147d2e5bcf0daf292165cf # v-latest
         with:
           extra_args: --only-verified --no-update
