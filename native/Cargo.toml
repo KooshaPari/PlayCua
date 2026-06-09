@@ -9,6 +9,15 @@ license.workspace = true
 name = "bare-cua-native"
 path = "src/main.rs"
 
+[[bin]]
+name = "bare-cua-mcp"
+path = "src/bin/bare-cua-mcp.rs"
+required-features = ["mcp-server"]
+
+[[bin]]
+name = "bare-cua-cli"
+path = "src/bin/bare-cua-cli.rs"
+
 [lib]
 name = "bare_cua_native"
 path = "src/lib.rs"
@@ -29,6 +38,18 @@ fast_image_resize.workspace = true
 enigo.workspace = true
 xcap.workspace = true
 libc = "0.2"
+rmcp.workspace = true
+schemars.workspace = true
+clap.workspace = true
+axum.workspace = true
+tower.workspace = true
+
+[features]
+# Default = stdio JSON-RPC 2.0 server (CLI / pipe-mode launchers).
+default = []
+# `mcp-server` = expose the 14 IPC methods as MCP tools (stdio or streamable-http).
+# Build with: cargo build --bin bare-cua-mcp --features mcp-server
+mcp-server = []
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

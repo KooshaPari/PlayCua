@@ -25,3 +25,21 @@ fast_image_resize = "6"
 enigo = { version = "0.6", features = [] }
 xcap = "0.9"
 
+# MCP server (rmcp 1.x — official Model Context Protocol Rust SDK)
+rmcp = { version = "1.7", default-features = false, features = [
+    "server",
+    "macros",
+    "transport-io",
+    "transport-streamable-http-server",
+    "reqwest",
+] }
+schemars = "1.0"
+
+# CLI / MCP-server bin deps
+clap = { version = "4.5", features = ["derive", "env"] }
+axum = "0.8"
+tower = "0.5"
+
+# Daemon socket + client deps
+# (Unix socket datagram / stream support, no extra dep needed for tokio on Unix)
+

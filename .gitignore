@@ -29,6 +29,9 @@ obj/
 .vs/
 *.nupkg
 
+# ...but track the Rust binary entry points at native/src/bin/
+!native/src/bin/
+
 # IDE
 .idea/
 .vscode/
