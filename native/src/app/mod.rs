@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::adapters::analysis_adapter::NativeAnalysisAdapter;
 use crate::adapters::process_adapter::NativeProcessAdapter;
 use crate::ipc::dispatcher::Dispatcher;
+use crate::modality::registry::SelectedModality;
 use crate::ports::{AnalysisPort, CapturePort, InputPort, ProcessPort, WindowPort};
 
 /// The fully-wired application ready to serve IPC requests.
@@ -17,7 +18,8 @@ pub struct App {
 
 impl App {
     /// Construct the application, selecting platform adapters at compile time.
-    pub fn build() -> Self {
+    /// The `selected` modality is surfaced in the `ping` JSON-RPC response.
+    pub fn build(selected: SelectedModality) -> Self {
         let capture: Arc<dyn CapturePort> = build_capture();
         let input: Arc<dyn InputPort> = build_input();
         let windows: Arc<dyn WindowPort> = build_window();
@@ -25,7 +27,7 @@ impl App {
         let analysis: Arc<dyn AnalysisPort> = Arc::new(NativeAnalysisAdapter::new());
 
         App {
-            dispatcher: Dispatcher::new(capture, input, windows, process, analysis),
+            dispatcher: Dispatcher::new(capture, input, windows, process, analysis, selected),
         }
     }
 }

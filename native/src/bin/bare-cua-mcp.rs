@@ -26,6 +26,8 @@ use tracing_subscriber::EnvFilter;
 
 use bare_cua_native::app::App;
 use bare_cua_native::mcp_server::BareCuaMcp;
+use bare_cua_native::modality::registry::{ModalityEnv, ModalityRegistry};
+use bare_cua_native::modality::ModalityKind;
 
 #[derive(Parser, Debug)]
 #[command(name = "bare-cua-mcp", version, about = "bare-cua as an MCP server")]
@@ -46,6 +48,11 @@ struct Args {
     /// Path prefix for HTTP MCP endpoint. Default: `/mcp`.
     #[arg(long, default_value = "/mcp")]
     path: String,
+
+    /// Modality: native | sandbox | nvms | wsl | container. Overrides
+    /// BARE_CUA_MODALITY env var; falls back to auto.
+    #[arg(long, value_parser = ["native", "sandbox", "nvms", "wsl", "container"])]
+    modality: Option<String>,
 }
 
 #[tokio::main]
@@ -59,8 +66,21 @@ async fn main() -> Result<()> {
         "bare-cua-mcp starting"
     );
 
+    // Select modality from flag > env > auto.
+    let mut registry = ModalityRegistry::with_defaults();
+    let flag = args.modality.as_deref().and_then(ModalityKind::parse);
+    let env = ModalityEnv::from_process_env(flag);
+    let selected = registry.select(&env).clone();
+    info!(
+        kind = %selected.kind,
+        describe = %selected.describe,
+        detail = %selected.detail,
+        available = selected.available,
+        "modality selected"
+    );
+
     // Wire the app once; the Arc is shared across all transports / clients.
-    let app = App::build();
+    let app = App::build(selected);
     let dispatcher = Arc::new(app.dispatcher);
 
     match args.transport.as_str() {

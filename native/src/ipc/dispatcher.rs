@@ -13,6 +13,7 @@ use crate::domain::input::{Key, KeyAction, MouseAction, MouseButton, MouseEvent,
 use crate::domain::process::ProcessHandle;
 use crate::domain::window::WindowFilter;
 use crate::ipc::mod_types::{Request, Response};
+use crate::modality::registry::SelectedModality;
 use crate::ports::{AnalysisPort, CapturePort, InputPort, ProcessPort, WindowPort};
 
 pub struct Dispatcher {
@@ -21,6 +22,10 @@ pub struct Dispatcher {
     pub windows: Arc<dyn WindowPort>,
     pub process: Arc<dyn ProcessPort>,
     pub analysis: Arc<dyn AnalysisPort>,
+    /// The modality that was selected at App::build() time. Surfaced via
+    /// the `ping` method so MCP clients / bare-cua-cli can see which
+    /// environment they are talking to.
+    pub selected_modality: SelectedModality,
 }
 
 impl Dispatcher {
@@ -30,8 +35,9 @@ impl Dispatcher {
         windows: Arc<dyn WindowPort>,
         process: Arc<dyn ProcessPort>,
         analysis: Arc<dyn AnalysisPort>,
+        selected_modality: SelectedModality,
     ) -> Self {
-        Self { capture, input, windows, process, analysis }
+        Self { capture, input, windows, process, analysis, selected_modality }
     }
 
     /// Dispatch a JSON-RPC request to the appropriate port method.
@@ -41,7 +47,22 @@ impl Dispatcher {
         let params = req.params.unwrap_or(Value::Null);
 
         match req.method.as_str() {
-            "ping" => Response::ok(id, json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
+            "ping" => {
+                let m = &self.selected_modality;
+                Response::ok(
+                    id,
+                    json!({
+                        "ok": true,
+                        "version": env!("CARGO_PKG_VERSION"),
+                        "modality": {
+                            "kind": m.kind.as_str(),
+                            "describe": m.describe,
+                            "detail": m.detail,
+                            "available": m.available,
+                        }
+                    }),
+                )
+            }
 
             "screenshot" => self.handle_screenshot(id, params).await,
 

@@ -7,6 +7,7 @@ pub mod adapters;
 pub mod app;
 pub mod domain;
 pub mod ipc;
+pub mod modality;
 #[cfg(feature = "mcp-server")]
 pub mod mcp_server;
 pub mod plugins;
