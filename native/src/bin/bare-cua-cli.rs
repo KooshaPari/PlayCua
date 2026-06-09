@@ -30,9 +30,16 @@ use tokio::process::Command;
 #[command(name = "bare-cua-cli", version, about = "Shell client for bare-cua-native")]
 struct Cli {
     /// Path to the bare-cua-native binary. Defaults to $BARE_CUA_NATIVE
-    /// or `./target/release/bare-cua-native`.
+    /// or `bare-cua-native` on $PATH.
     #[arg(long, env = "BARE_CUA_NATIVE", default_value = "bare-cua-native")]
     daemon: PathBuf,
+
+    /// Path to a Unix-socket daemon started with `bare-cua-native --socket <path>`.
+    /// If set, the CLI connects to the running daemon instead of spawning
+    /// a fresh subprocess per call. This is dramatically faster for tight
+    /// loops (for, xargs, parallel, etc.). Set via flag or $BARE_CUA_SOCKET.
+    #[arg(long, env = "BARE_CUA_SOCKET")]
+    socket: Option<PathBuf>,
 
     #[command(subcommand)]
     cmd: Cmd,
@@ -198,7 +205,10 @@ async fn main() -> Result<()> {
         }
     };
 
-    let (code, json) = daemon_call(&cli.daemon, &method, params).await?;
+    let (code, json) = match &cli.socket {
+        Some(socket_path) => socket_call(socket_path, &method, params).await?,
+        None => daemon_call(&cli.daemon, &method, params).await?,
+    };
     if code != 0 {
         if let Some(err) = json.get("error") {
             eprintln!("RPC error: {err}");
@@ -227,6 +237,47 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Connect to a Unix-socket daemon, send one request, read one response.
+#[cfg(unix)]
+async fn socket_call(socket_path: &PathBuf, method: &str, params: Value) -> Result<(i32, Value)> {
+    use tokio::io::AsyncBufReadExt;
+    use tokio::net::UnixStream;
+
+    let stream = UnixStream::connect(socket_path)
+        .await
+        .with_context(|| format!("connecting to daemon at {}", socket_path.display()))?;
+    let (read_half, mut write_half) = stream.into_split();
+    let mut reader = BufReader::new(read_half);
+
+    let req = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    });
+    let mut line = serde_json::to_string(&req)?;
+    line.push('\n');
+    write_half.write_all(line.as_bytes()).await?;
+    write_half.flush().await?;
+    drop(write_half); // half-close so the daemon sees EOF and can answer
+
+    let mut resp = String::new();
+    reader.read_line(&mut resp).await?;
+    let trimmed = resp.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("daemon closed connection without responding");
+    }
+    let parsed: Value = serde_json::from_str(trimmed)
+        .with_context(|| format!("daemon sent non-JSON: {trimmed}"))?;
+    let code = parsed
+        .get("error")
+        .and_then(|e| e.get("code"))
+        .and_then(|c| c.as_i64())
+        .map(|c| c as i32)
+        .unwrap_or(0);
+    Ok((code, parsed))
 }
 
 /// Spawn the daemon, send one request, read one response, kill the daemon.

@@ -11,3 +11,5 @@ pub mod ipc;
 pub mod mcp_server;
 pub mod plugins;
 pub mod ports;
+#[cfg(unix)]
+pub mod socket;
