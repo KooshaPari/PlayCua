@@ -1,0 +1,282 @@
+//! `bare-cua-cli` — scriptable shell client for the bare-cua-native daemon.
+//!
+//! Subcommands wrap the 14 JSON-RPC methods into ergonomic shell verbs:
+//!   bare-cua-cli ping
+//!   bare-cua-cli screenshot > shot.png
+//!   bare-cua-cli click 100 200
+//!   bare-cua-cli type "hello world"
+//!   bare-cua-cli key Return
+//!   bare-cua-cli run --path /bin/echo --args hello --args world
+//!   bare-cua-cli ps kill 1234
+//!
+//! Transport: spawns the daemon as a subprocess and talks newline-delimited
+//! JSON-RPC 2.0 over its stdio. No socket, no daemonization — just `pipe`.
+//! This keeps the CLI stateless, scriptable, and `nix`-friendly (works
+//! inside `xargs`, `parallel`, `for f in ...; do` loops, etc.).
+//!
+//! Exit codes: 0 on success, 1 on JSON-RPC error, 2 on transport error.
+
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::Stdio;
+
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
+use serde_json::{json, Value};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::Command;
+
+#[derive(Parser, Debug)]
+#[command(name = "bare-cua-cli", version, about = "Shell client for bare-cua-native")]
+struct Cli {
+    /// Path to the bare-cua-native binary. Defaults to $BARE_CUA_NATIVE
+    /// or `./target/release/bare-cua-native`.
+    #[arg(long, env = "BARE_CUA_NATIVE", default_value = "bare-cua-native")]
+    daemon: PathBuf,
+
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand, Debug)]
+enum Cmd {
+    /// Ping the daemon (round-trip health check).
+    Ping,
+    /// Capture the screen (or a window) and write base64-encoded PNG to stdout.
+    Screenshot {
+        /// Display index; omit for primary.
+        #[arg(long)]
+        display: Option<u32>,
+        /// Substring of the window title to capture.
+        #[arg(long)]
+        window: Option<String>,
+    },
+    /// Click (or press/release) a mouse button at (x, y).
+    Click {
+        x: i32,
+        y: i32,
+        /// left | right | middle (default: left)
+        #[arg(long, default_value = "left")]
+        button: String,
+        /// click | down | up (default: click)
+        #[arg(long, default_value = "click")]
+        action: String,
+    },
+    /// Move the mouse to (x, y).
+    Move { x: i32, y: i32 },
+    /// Scroll the wheel at (x, y).
+    Scroll {
+        x: i32,
+        y: i32,
+        /// up | down | left | right (default: down)
+        #[arg(long, default_value = "down")]
+        direction: String,
+        /// Wheel notch count (default: 3).
+        #[arg(long, default_value_t = 3)]
+        amount: i32,
+    },
+    /// Press, hold, or release a key or chord.
+    Key {
+        /// Key name, e.g. "Return", "ctrl+c", "shift+End".
+        key: String,
+        /// press | down | up (default: press)
+        #[arg(long, default_value = "press")]
+        action: String,
+    },
+    /// Type a literal string of text.
+    Type {
+        /// Text to type. Reads from stdin if "--" sentinel.
+        text: String,
+    },
+    /// List all visible top-level windows (newline-delimited JSON).
+    Windows,
+    /// Find a window by title substring and/or owner PID.
+    WindowsFind {
+        /// Substring of the window title.
+        #[arg(long)]
+        title: Option<String>,
+        /// Owner process PID.
+        #[arg(long)]
+        pid: Option<u32>,
+    },
+    /// Bring a window to the foreground.
+    WindowsFocus {
+        /// Platform-specific window handle.
+        hwnd: usize,
+    },
+    /// Launch a process and print its PID.
+    Run {
+        /// Path to the executable.
+        #[arg(long)]
+        path: String,
+        /// argv entries (excluding argv[0]). Repeatable.
+        #[arg(long, value_delimiter = ' ')]
+        args: Vec<String>,
+        /// Optional working directory.
+        #[arg(long)]
+        cwd: Option<String>,
+    },
+    /// Terminate a process by PID.
+    Kill {
+        /// Process ID.
+        pid: u32,
+    },
+    /// Query process status.
+    Status {
+        /// Process ID.
+        pid: u32,
+    },
+    /// Compute the fraction of differing pixels between two PNG files.
+    Diff {
+        /// Path to first PNG.
+        a: PathBuf,
+        /// Path to second PNG.
+        b: PathBuf,
+        /// Pixel-difference threshold [0.0, 1.0]. Default 0.02.
+        #[arg(long, default_value_t = 0.02)]
+        threshold: f32,
+    },
+    /// Compute a BLAKE3 hash of a PNG (for change detection).
+    Hash {
+        /// Path to PNG.
+        image: PathBuf,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+    let (method, params) = match &cli.cmd {
+        Cmd::Ping => ("ping".to_string(), Value::Null),
+        Cmd::Screenshot { display, window } => (
+            "screenshot".to_string(),
+            json!({ "display": display, "window_title": window }),
+        ),
+        Cmd::Click { x, y, button, action } => (
+            "input.click".to_string(),
+            json!({ "x": x, "y": y, "button": button, "action": action }),
+        ),
+        Cmd::Move { x, y } => (
+            "input.move".to_string(),
+            json!({ "x": x, "y": y }),
+        ),
+        Cmd::Scroll { x, y, direction, amount } => (
+            "input.scroll".to_string(),
+            json!({ "x": x, "y": y, "direction": direction, "amount": amount }),
+        ),
+        Cmd::Key { key, action } => (
+            "input.key".to_string(),
+            json!({ "key": key, "action": action }),
+        ),
+        Cmd::Type { text } => ("input.type".to_string(), json!({ "text": text })),
+        Cmd::Windows => ("windows.list".to_string(), Value::Null),
+        Cmd::WindowsFind { title, pid } => (
+            "windows.find".to_string(),
+            json!({ "title": title, "pid": pid }),
+        ),
+        Cmd::WindowsFocus { hwnd } => ("windows.focus".to_string(), json!({ "hwnd": hwnd })),
+        Cmd::Run { path, args, cwd } => (
+            "process.launch".to_string(),
+            json!({ "path": path, "args": args, "cwd": cwd }),
+        ),
+        Cmd::Kill { pid } => ("process.kill".to_string(), json!({ "pid": pid })),
+        Cmd::Status { pid } => ("process.status".to_string(), json!({ "pid": pid })),
+        Cmd::Diff { a, b, threshold } => {
+            let a_b64 = base64_encode_file(a).await?;
+            let b_b64 = base64_encode_file(b).await?;
+            (
+                "analysis.diff".to_string(),
+                json!({ "image_a": a_b64, "image_b": b_b64, "threshold": threshold }),
+            )
+        }
+        Cmd::Hash { image } => {
+            let image_b64 = base64_encode_file(image).await?;
+            (
+                "analysis.hash".to_string(),
+                json!({ "image": image_b64 }),
+            )
+        }
+    };
+
+    let (code, json) = daemon_call(&cli.daemon, &method, params).await?;
+    if code != 0 {
+        if let Some(err) = json.get("error") {
+            eprintln!("RPC error: {err}");
+        }
+        std::process::exit(1);
+    }
+    let result = json.get("result").cloned().unwrap_or(Value::Null);
+    // Print compact JSON for non-screenshot cases; for screenshot, write the
+    // raw base64 PNG bytes to stdout (decoded) so the shell can pipe it
+    // directly to `> shot.png`.
+    match &cli.cmd {
+        Cmd::Screenshot { .. } => {
+            if let Some(data) = result.get("data").and_then(|v| v.as_str()) {
+                use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+                let bytes = BASE64
+                    .decode(data)
+                    .context("screenshot base64 decode failed")?;
+                std::io::stdout().write_all(&bytes)?;
+            } else {
+                eprintln!("no `data` field in result: {result}");
+                std::process::exit(1);
+            }
+        }
+        _ => {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+    }
+    Ok(())
+}
+
+/// Spawn the daemon, send one request, read one response, kill the daemon.
+async fn daemon_call(daemon: &PathBuf, method: &str, params: Value) -> Result<(i32, Value)> {
+    let mut child = Command::new(daemon)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| format!("failed to spawn {}", daemon.display()))?;
+
+    let mut stdin = child.stdin.take().context("missing daemon stdin")?;
+    let stdout = child.stdout.take().context("missing daemon stdout")?;
+    let mut reader = BufReader::new(stdout);
+
+    let req = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    });
+    let mut line = serde_json::to_string(&req)?;
+    line.push('\n');
+    stdin.write_all(line.as_bytes()).await?;
+    stdin.flush().await?;
+    drop(stdin); // close stdin so the daemon exits after responding
+
+    let mut resp = String::new();
+    reader.read_line(&mut resp).await?;
+    let trimmed = resp.trim();
+    if trimmed.is_empty() {
+        let status = child.wait().await?;
+        anyhow::bail!("daemon closed stdout (exit code {:?})", status.code());
+    }
+    let parsed: Value = serde_json::from_str(trimmed)
+        .with_context(|| format!("daemon sent non-JSON: {trimmed}"))?;
+    let code = parsed
+        .get("error")
+        .and_then(|e| e.get("code"))
+        .and_then(|c| c.as_i64())
+        .map(|c| c as i32)
+        .unwrap_or(0);
+    let _ = child.kill().await; // daemon would exit on stdin EOF anyway
+    Ok((code, parsed))
+}
+
+async fn base64_encode_file(path: &PathBuf) -> Result<String> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .with_context(|| format!("read {} failed", path.display()))?;
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    Ok(BASE64.encode(&bytes))
+}
