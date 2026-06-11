@@ -7,6 +7,9 @@
 
 # bare-cua
 
+![Status: DEPRECATED](https://img.shields.io/badge/Status-DEPRECATED-red)
+[![Merged into PlayCua](https://img.shields.io/badge/Merged%20into-PlayCua-blueviolet)](https://github.com/KooshaPari/PlayCua)
+
 # DEPRECATED — merged into PlayCua
 
 This repository is **frozen at commit `e9b44d4`** (the 2026-06-08 snapshot) and is no longer maintained. All active development has moved to **[PlayCua](https://github.com/KooshaPari/PlayCua)** (master at `110a28c`), which is a **strict superset** of this codebase: **7 commits ahead** and **+4 297 LOC** over the bare-cua snapshot.
@@ -16,6 +19,14 @@ The PlayCua-only work that lives outside this repo includes: `native/src/modalit
 **Migration:** use [PlayCua](https://github.com/KooshaPari/PlayCua) directly for all new work. New issues and PRs should be opened there. This repository is scheduled to be archived on 2026-09-01 per [`plans/2026-06-09-playcua-barecua-merge-plan-v1.md`](plans/2026-06-09-playcua-barecua-merge-plan-v1.md).
 
 Status: frozen snapshot, see PlayCua.
+
+## Merged into PlayCua
+
+This repository (`bare-cua`) is **deprecated** and is no longer accepting new features, bug fixes, security patches, or pull requests. The codebase is preserved here strictly as a historical reference, frozen at the 2026-06-08 snapshot (commit `e9b44d4`). The original goal of `bare-cua` — a heavy fork of [`trycua/cua`](https://github.com/trycua/cua) that strips the VM layer and replaces `computer-server` with a native Rust binary speaking stdio JSON-RPC 2.0 — has been fully realized, and the project has reached a stable, archived state. Consumers and contributors should not treat this repository as a source of truth going forward.
+
+All active functionality has moved to **[PlayCua](https://github.com/KooshaPari/PlayCua)**, which is a strict superset of this codebase. PlayCua currently sits 7 commits ahead with +4 297 LOC over the bare-cua snapshot, and contains the full `bare-cua` implementation plus the surrounding work that never lived here: the 5-modality registry (`native / sandbox / nvms / wsl / container`) under `native/src/modality/`, the `bare-cua-cli` and `bare-cua-mcp` binaries, the MCP server, the Unix-socket daemon, the `echo_plugin` example, the ADRs, and the skill SDK. The PlayCua README documents the full feature set, the architecture, and the supported platforms — please refer to it for any current behavior, APIs, or build instructions.
+
+**Migration path.** To migrate, point your dependencies and tooling at PlayCua instead of this repository: see the [PlayCua README](https://github.com/KooshaPari/PlayCua/blob/master/README.md) for installation, build, and usage instructions. The merge plan that drove this consolidation lives at [`plans/2026-06-09-playcua-barecua-merge-plan-v1.md`](plans/2026-06-09-playcua-barecua-merge-plan-v1.md) and is the authoritative reference for what moved where. This repository is scheduled to be archived on 2026-09-01; please open all new issues and pull requests against PlayCua, and update any clones, forks, or CI pipelines to track PlayCua's `master` branch.
 
 [![Phenotype](https://img.shields.io/badge/Phenotype-org-blueviolet)](https://github.com/KooshaPari)
 
