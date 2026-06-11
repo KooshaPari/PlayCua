@@ -1,3 +1,56 @@
-/crates/ @kooshapari
-/bindings/ @kooshapari
-/* @kooshapari
+# CODEOWNERS — PlayCua
+# Canonical reviewer: @KooshaPari
+#
+# GitHub CODEOWNERS location priority:
+#   1. .github/CODEOWNERS  (already present, more detailed)
+#   2. /CODEOWNERS         (this file — kept in sync as a root-level alias)
+#   3. /docs/CODEOWNERS
+#
+# See: https://docs.github.com/en/repositories/creating-and-managing-repositories/about-code-owners
+
+# Default catch-all
+* @KooshaPari
+
+# Per-language drill-down
+/*.rs @KooshaPari
+/*.go @KooshaPari
+/*.ts @KooshaPari
+/*.js @KooshaPari
+/*.py @KooshaPari
+/*.toml @KooshaPari
+
+# Core source tree
+/crates/ @KooshaPari
+/bindings/ @KooshaPari
+/plugins/ @KooshaPari
+/agents/ @KooshaPari
+/benchmarks/ @KooshaPari
+/docs/ @KooshaPari
+/tests/ @KooshaPari
+/scripts/ @KooshaPari
+/examples/ @KooshaPari
+/skills/ @KooshaPari
+/echo_plugin/ @KooshaPari
+
+# Build / module config
+/Cargo.toml @KooshaPari
+/Cargo.lock @KooshaPari
+/Justfile @KooshaPari
+/justfile @KooshaPari
+/deny.toml @KooshaPari
+/rust-toolchain.toml @KooshaPari
+/package.json @KooshaPari
+/pnpm-workspace.yaml @KooshaPari
+/tsconfig.json @KooshaPari
+/pyproject.toml @KooshaPari
+
+# Governance + CI
+/SECURITY.md @KooshaPari
+/CODEOWNERS @KooshaPari
+/CONTRIBUTING.md @KooshaPari
+/CHANGELOG.md @KooshaPari
+/LICENSE @KooshaPari
+/.github/ @KooshaPari
+/.github/workflows/ @KooshaPari
+/.github/dependabot.yml @KooshaPari
+/.github/FUNDING.yml @KooshaPari
