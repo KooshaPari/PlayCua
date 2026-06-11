@@ -3,362 +3,260 @@
 Thanks for your interest in contributing to **PlayCua** — part of the
 [Phenotype](https://github.com/KooshaPari) ecosystem. PlayCua is a unified
 computer-use agent runtime that wraps Playwright, Selenium, and bare-cua
-behind a single port/adapter seam (see `SPEC.md` and `ARCHITECTURE.md`).
+into a single, plugin-driven SDK with native / sandbox / nvms / wsl /
+container modality support.
 
-This document is the canonical contributor guide. It supersedes any
-shorter `CONTRIBUTING.md` you may find in older branches. If you are a
-background agent, also see `AGENTS.md` and `CLAUDE.md` in this repo for
-operating procedures.
-
----
-
-## Table of Contents
-
-1. [Code of Conduct](#code-of-conduct)
-2. [Project Layout](#project-layout)
-3. [Prerequisites](#prerequisites)
-4. [Development Setup](#development-setup)
-5. [Build](#build)
-6. [Test](#test)
-7. [Lint, Format, and Quality Gates](#lint-format-and-quality-gates)
-8. [Coverage](#coverage)
-9. [Commit Message Format (Conventional Commits)](#commit-message-format-conventional-commits)
-10. [Branch and PR Process](#branch-and-pr-process)
-11. [Code Review](#code-review)
-12. [Reporting Issues](#reporting-issues)
-13. [Security Disclosures](#security-disclosures)
-14. [License](#license)
+This document explains how to set up your development environment, run
+the test suite, propose changes, and get them merged safely.
 
 ---
 
-## Code of Conduct
+## 1. Code of Conduct
 
-By participating, you agree to abide by the [Phenotype Code of
-Conduct](https://github.com/KooshaPari/phenotype-org-governance/blob/main/CODE_OF_CONDUCT.md).
-Be respectful. Assume good intent. Keep technical disagreement on the
-technical merits.
+By participating, you agree to abide by the
+[Phenotype Code of Conduct](CODE_OF_CONDUCT.md) (if present) and the
+GitHub Community Guidelines. Be respectful, assume good faith, and
+prefer written communication that can be quoted later.
 
-## Project Layout
+## 2. Project Overview
 
-```
-PlayCua/
-├── src/                 # Core library code (Rust + thin TS/Go shims)
-│   ├── adapters/        # Playwright / Selenium / bare-cua adapters
-│   ├── ports/           # Port traits (Renderer, Driver, Orchestrator)
-│   ├── domain/          # Domain types (Session, Frame, Intent)
-│   └── lib.rs
-├── tests/               # Integration tests + insta snapshots
-├── examples/            # Runnable example plugins (echo, screenshot, …)
-├── docs/                # Long-form docs (VitePress source)
-├── .github/
-│   ├── workflows/       # CI, scorecard, secret-scan, dependabot
-│   ├── CODEOWNERS       # Per-area ownership
-│   └── FUNDING.yml      # Sponsor links
-├── Cargo.toml           # Rust workspace root
-├── package.json         # TS shim + VitePress docs
-├── go.mod               # Bare-cua interop bridge (sub-crate)
-├── SPEC.md              # Functional spec
-├── ARCHITECTURE.md      # Port/adapter diagram + dependency graph
-├── AGENTS.md            # Agent operating procedures
-├── CLAUDE.md            # Code-agent quickstart
-├── CHANGELOG.md         # Keep-a-Changelog 1.1.0
-├── CODEOWNERS           # Root-level ownership alias
-├── CONTRIBUTING.md      # This file
-├── SECURITY.md          # Security policy
-└── LICENSE              # MIT OR Apache-2.0
-```
+PlayCua is a Rust-first, polyglot-bridge agent runtime. It exposes a
+common `MethodPlugin` trait that downstream computer-use libraries
+(Playwright, Selenium, bare-cua) implement, and routes calls to a
+selected **modality** at runtime:
 
-## Prerequisites
+- `native` — direct OS process, full feature set
+- `sandbox` — Apple Seatbelt / Linux user-namespace isolation
+- `nvms` — NanoVMS WASM runtime
+- `wsl` — Windows Subsystem for Linux
+- `container` — OCI container (Docker, Podman, containerd)
 
-- **Rust** 1.78+ (install via [rustup](https://rustup.rs))
-- **Node.js** 20+ (for VitePress docs and TS shim)
-- **pnpm** or **bun** (project uses both — pick one; CI uses pnpm)
-- **Go** 1.23+ (only required for the bare-cua interop bridge)
-- **git** 2.40+
-- A POSIX shell (`zsh` or `bash`)
+The repository is a Cargo workspace (root `Cargo.toml`) plus
+TypeScript bindings under `bindings/`, a Python bridge under
+`python/`, and a `skills/` directory for the agent skill SDK.
+The `Justfile` at the root is the canonical entry point for all
+build / test / lint tasks.
 
-Verify your toolchain:
+## 3. Development Environment
 
-```bash
-rustc --version    # rustc 1.78.0 or newer
-cargo --version
-node --version     # v20.0.0 or newer
-pnpm --version     # 9.x
-go version         # go1.23 or newer
-git --version
-```
+### 3.1 Required Toolchains
 
-## Development Setup
+| Tool             | Version   | Why                                |
+|------------------|-----------|------------------------------------|
+| Rust             | `stable`  | Core runtime                      |
+| `cargo`          | ≥ 1.78    | Build, test, fmt, clippy           |
+| `rustfmt`        | stable    | Formatting                         |
+| `clippy`         | stable    | Lints (CI fails on warnings)       |
+| `cargo-deny`     | ≥ 0.14    | License + advisory gating          |
+| `cargo-audit`    | ≥ 0.20    | Vulnerability scan                 |
+| `cargo-nextest`  | ≥ 0.9     | Faster test runner (optional)      |
+| Node.js          | ≥ 20 LTS  | TS bindings                        |
+| `pnpm`           | ≥ 9       | TS package manager                 |
+| Python           | 3.11+     | Python bridge                      |
+| `uv`             | ≥ 0.4     | Python env + dep manager           |
+| `ruff`           | ≥ 0.5     | Python linter + formatter          |
+| `mypy`           | ≥ 1.10    | Python type-check                  |
+| `just`           | ≥ 1.36    | Task runner (preferred over Make)  |
+| `lefthook`       | ≥ 1.6     | Git hooks manager                  |
+| `trunk`          | ≥ 0.20    | Multi-language formatter (CI)      |
+
+### 3.2 Clone + Bootstrap
 
 ```bash
-# 1. Clone (substitute the fork URL if you forked first)
-git clone https://github.com/KooshaPari/PlayCua.git
-cd PlayCua
-
-# 2. Install JS deps
-pnpm install      # or: bun install
-
-# 3. Pre-fetch Rust deps (faster first build)
-cargo fetch
-
-# 4. Build everything once
-cargo build --workspace
-
-# 5. Run the smoke tests
-cargo test --workspace --no-run
+git clone https://github.com/KooshaPari/playcua.git
+cd playcua
+just bootstrap
 ```
 
-The first `cargo build` is slow (~3-5 min on a clean machine); subsequent
-builds are incremental.
+`just bootstrap` will:
 
-### Recommended shell aliases
+1. Install `lefthook` git hooks (`pre-commit`, `pre-push`).
+2. Install `cargo` subcommands we use (`deny`, `audit`, `nextest`,
+   `outdated`, `bloat`).
+3. Run `cargo fetch` and the smoke build of every workspace member.
+4. (Optional) set up the `python/` venv via `uv venv` and `uv pip sync`.
+5. (Optional) `pnpm install` for the TS bindings.
+6. (Optional) install the modality providers (Docker, WSL, NVMS).
+
+### 3.3 Editor Setup
+
+- **VS Code**: open `playcua.code-workspace` (if present) or just the
+  root; the recommended extensions are:
+  `rust-lang.rust-analyzer`, `tamasfe.even-better-toml`,
+  `charliermarsh.ruff`, `ms-python.mypy`,
+  `ms-playwright.playwright`.
+- **Neovim / Helix / Zed**: zero-config LSPs; the `rust-analyzer`
+  config lives at `.config/rust-analyzer.toml`.
+- **JetBrains RustRover**: open the root, and RustRover will pick up
+  the workspace members automatically.
+
+## 4. Building
 
 ```bash
-alias pc='cd /path/to/PlayCua'
-alias ptest='cargo test --workspace'
-alias plint='cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all -- --check'
+# Everything (Rust workspace + TS bindings + Python bridge)
+just build
+
+# Just the Rust workspace
+cargo build --workspace --all-targets
+
+# Release-mode binaries
+cargo build --release --workspace
+
+# TypeScript bindings
+(cd bindings && pnpm build)
+
+# Python bridge
+(cd python && uv build)
 ```
 
-## Build
+Useful binary outputs:
 
-PlayCua is a Cargo workspace. Standard commands apply:
+- `target/release/playcua` — main CLI.
+- `target/release/playcuad` — long-running daemon.
+- `target/release/pc-fleet` — bulk-fleet runner.
 
-```bash
-# Debug build (default)
-cargo build --workspace
+## 5. Testing
 
-# Release build
-cargo build --workspace --release
+| Tier          | Command                                       | Owner       | Wall-clock |
+|---------------|-----------------------------------------------|-------------|------------|
+| Unit (Rust)   | `cargo test --workspace`                      | Core team   | < 2 min    |
+| Unit (TS)     | `pnpm --filter ./bindings test`               | Bindings    | < 1 min    |
+| Unit (Python) | `uv run pytest` (in `python/`)                | Bridge      | < 1 min    |
+| Integration   | `just test-integration`                       | Core team   | < 10 min   |
+| Snapshot      | `cargo insta test --workspace --review`       | Core team   | < 2 min    |
+| Modality E2E  | `just test-modality`                          | Runtime     | < 15 min   |
+| Property      | `cargo test --features proptest`              | Core team   | < 5 min    |
+| Fuzz          | `cargo +nightly fuzz run parser -- -max_total_time=600` | Security | 10 min |
+| E2E           | `just test-e2e`                               | Core team   | < 30 min   |
 
-# A single crate
-cargo build -p playcua-core
+CI runs unit + snapshot + integration + property on every PR. Fuzz
+and E2E run nightly and on release tags.
 
-# With a specific adapter feature
-cargo build --no-default-features --features=playwright-adapter
-cargo build --no-default-features --features=selenium-adapter
-cargo build --no-default-features --features=bare-cua-adapter
+## 6. Coding Standards
 
-# All adapters (default for CI)
-cargo build --workspace --all-features
-```
+- **Rust**: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`.
+  Use `tracing` for structured logs; never `eprintln!` in library code.
+- **Errors**: `thiserror` for typed error enums, `anyhow` only at the
+  binary boundary. Wrap context with `.with_context()`.
+- **Public APIs**: every public function has a doc-comment and a
+  `#[non_exhaustive]` attribute on enums where we may add variants.
+- **TypeScript**: `prettier --check`, `eslint`, `tsc --noEmit`.
+- **Python**: `ruff format`, `ruff check`, `mypy --strict`. Type
+  hints are mandatory on all new code.
+- **Tests**: name files `<module>.test.rs` colocated with the module
+  they test; integration tests live in `tests/` at the workspace root.
+- **Commits**: conventional commits — see §9.
 
-Build artifacts land in `target/debug/` or `target/release/`.
+## 7. Branching
 
-## Test
+- Default branch: `main`.
+- Long-lived integration branches: `release/X.Y`.
+- Feature / fix / chore branches: `<type>/<scope>-<short-desc>`
+  (kebab-case, ≤ 60 chars). The `<type>` matches the conventional
+  commit type and the `<scope>` matches the commit scope.
+  Examples: `feat/method-plugin-skill`, `fix/wsl-spawn-race`,
+  `chore/l2-30-governance-2026-06-11`.
 
-```bash
-# Unit + integration tests
-cargo test --workspace
+## 8. Pull Request Process
 
-# A single test by name
-cargo test --workspace session::frame::resize
+1. **Open an issue first** for non-trivial changes. Bug fixes and
+   documentation improvements may go straight to PR.
+2. **Fork** the repo (or push to a feature branch if you have write
+   access via the Phenotype org).
+3. **Keep PRs focused**: < 400 lines diff where possible. Split
+   larger refactors into a stack of dependent PRs.
+4. **Fill the PR template** — it links to the design doc / spec /
+   issue, the test plan, and the rollout / risk notes.
+5. **Pass CI**: fmt, clippy, all tier-1 tests, `cargo deny` (license +
+   advisory), `cargo audit`, CodeQL, OpenSSF Scorecard check.
+6. **Request a review** from the CODEOWNERS — for PlayCua the
+   default reviewer is `@KooshaPari`. Add a domain reviewer (e.g.
+   security, modality, bindings) for cross-cutting changes.
+7. **Address review feedback** in additional commits; the maintainer
+   will squash-merge once the conversation is resolved.
+8. **After merge**, delete the source branch.
 
-# Doc tests
-cargo test --workspace --doc
-
-# With race detection (where supported)
-cargo test --workspace -- --test-threads=1
-
-# Snapshot updates (insta)
-cargo insta review          # interactive
-cargo insta accept          # non-interactive
-cargo insta reject
-```
-
-Test output is ANSI-colored; prefix with `NO_COLOR=1` for plain logs.
-
-## Lint, Format, and Quality Gates
-
-All gates MUST pass before pushing. The CI runs the same set on every PR.
-
-```bash
-# Format check (auto-fixes on save in most editors)
-cargo fmt --all -- --check
-
-# Lints (deny warnings, fail on clippy::pedantic)
-cargo clippy --workspace --all-targets -- -D warnings
-
-# cargo-deny (license + advisory + ban + source)
-cargo deny check
-
-# cargo-audit (RustSec advisory database)
-cargo audit
-
-# Pre-commit (gitleaks + trufflehog + fmt + clippy)
-pre-commit run --all-files
-```
-
-CI also runs `cargo llvm-cov` and posts the line-coverage delta as a PR
-comment. **Coverage regressions on changed lines are a soft fail** — the
-PR may be merged if justified, but the author is asked to add tests in a
-follow-up.
-
-## Coverage
-
-```bash
-# HTML report
-cargo llvm-cov --workspace --html --output-dir coverage/
-
-# LCOV (for CI)
-cargo llvm-cov --workspace --lcov --output-path lcov.info
-
-# Summary
-cargo llvm-cov report --summary
-```
-
-The line-coverage target on the 3 main crates (`playcua-core`,
-`playcua-cli`, `playcua-mcp`) is **≥ 80%**. Drops below 70% require a
-justification in the PR body.
-
-## Commit Message Format (Conventional Commits)
+## 9. Commit Message Format (Conventional Commits)
 
 PlayCua uses [Conventional Commits 1.0.0](https://www.conventionalcommits.org/).
-
-### Format
 
 ```
 <type>(<scope>): <short summary>
 
-<body — wrap at 72 columns>
+<body — wrap at 72 cols; explain *what* and *why*>
 
-<footer>
+<footer — e.g. "BREAKING CHANGE: ...", "Closes #123", "Refs: SPEC-42">
 ```
 
 ### Allowed types
 
-| Type       | Purpose                                                  |
-|------------|----------------------------------------------------------|
-| `feat`     | A new user-visible feature                               |
-| `fix`      | A bug fix                                                |
-| `docs`     | Documentation only                                       |
-| `style`    | Formatting (no logic change)                             |
-| `refactor` | Code restructuring (no behavior change)                  |
-| `perf`     | Performance improvement                                  |
-| `test`     | Adding or fixing tests                                   |
-| `build`    | Build system / dependency change                         |
-| `ci`       | CI configuration                                         |
-| `chore`    | Maintenance, tooling, governance (no source change)      |
-| `revert`   | Revert a previous commit                                 |
+| Type       | Semantics                                                    |
+|------------|--------------------------------------------------------------|
+| `feat`     | A new user-facing feature                                    |
+| `fix`      | A bug fix                                                    |
+| `docs`     | Documentation only                                           |
+| `style`    | Whitespace/formatting, no code change                        |
+| `refactor` | Code change that neither fixes a bug nor adds a feature      |
+| `perf`     | Performance improvement                                      |
+| `test`     | Add or correct tests                                         |
+| `build`    | Build system, CI, or dependency change                       |
+| `chore`    | Tooling, repo hygiene, governance (this PR)                  |
+| `revert`   | Reverts a previous commit (include `Reverts: <sha>`)         |
+| `security` | Security fix (also notify `security@phenotype.internal`)     |
 
-### Scopes (recommended)
+### Scopes (non-exhaustive)
 
-`core`, `cli`, `mcp`, `adapter-playwright`, `adapter-selenium`,
-`adapter-bare-cua`, `domain`, `ports`, `docs`, `ci`, `governance`.
+`runtime`, `plugin`, `modality`, `agent`, `parser`, `rpc`,
+`bindings`, `python`, `ci`, `docs`, `deps`, `governance`.
 
 ### Examples
 
 ```
-feat(adapter-playwright): add retry-on-stale-element handler
+feat(plugin): add MethodPlugin::invoke_with_retry helper
 
-fix(core): clamp session timeout to [1s, 24h]
+Previously a transient modality failure would surface as a
+hard PluginError, which forced every plugin author to reinvent
+the retry loop. The new helper centralises exponential backoff
+and surface-level error classification, with a default policy
+of 3 retries over 250ms.
 
-docs(arch): add sequence diagram for the Driver port
-
-chore(governance): add CODEOWNERS, CONTRIBUTING, SECURITY, FUNDING (L2 #30)
+Adds a unit test under `crates/runtime/tests/plugin_retry.rs`.
+Closes #142
+Refs: SPEC-12 §3
 ```
 
-### Breaking changes
-
-Mark with `!` after the type/scope and a `BREAKING CHANGE:` footer:
-
 ```
-feat(api)!: rename SessionHandle.id to SessionHandle.handle
+fix(modality): reject empty worktree spec with a clear error
 
-BREAKING CHANGE: callers must use `.handle` instead of `.id`.
-Migration: rg '\.id\b' --type rust | xargs sed -i '' 's/\.id\b/.handle/g'
+Empty `<worktree></worktree>` blocks used to produce a
+`None`-propagation panic deep inside the parser. We now surface
+a `ParseError::EmptyWorktree` with the offending line number.
+
+Fixes #487
 ```
 
-## Branch and PR Process
+## 10. Reviewer Expectations
 
-### Branch naming
+- **First response** within 2 business days.
+- Reviews cover: correctness, test coverage, security, performance,
+  API stability, observability, and documentation.
+- Maintainer privilege: squash-merge with the PR title as the squash
+  subject and the PR body as the squash body. Override only when the
+  history itself is meaningful (rare; discuss in the PR).
 
-- `feat/<short-kebab>` — new user-visible feature
-- `fix/<short-kebab>` — bug fix
-- `chore/<short-kebab>` — maintenance, deps, governance
-- `docs/<short-kebab>` — documentation
-- `refactor/<short-kebab>` — code restructure
-- `hotfix/<short-kebab>` — urgent production fix (expedited review)
+## 11. Release Process
 
-### Workflow
+PlayCua follows semver. Releases are cut from `main` by the
+release-please GitHub App configured in
+`.github/release-please-config.json`. The maintainer approves the
+release PR, which is auto-generated and bumps versions, CHANGELOG,
+and tags.
 
-1. **Branch** off `main`:
-   ```bash
-   git checkout main && git pull
-   git checkout -b feat/your-feature
-   ```
-2. **Develop** in small, focused commits.
-3. **Run the full quality gate** locally:
-   ```bash
-   cargo fmt --all -- --check && \
-     cargo clippy --workspace --all-targets -- -D warnings && \
-     cargo test --workspace && \
-     cargo deny check
-   ```
-4. **Push** and **open a PR** against `main`:
-   ```bash
-   git push -u origin feat/your-feature
-   gh pr create --base main --title "feat(scope): short summary" \
-     --body-file .github/PULL_REQUEST_TEMPLATE.md
-   ```
-5. **Address review** in additional commits (do not force-push during
-   review — rebase only after approval).
-6. **Squash-merge** via the GitHub UI; the squash commit message MUST
-   follow the conventional-commits format.
+## 12. Getting Help
 
-### PR requirements (CI will enforce)
+- **Discord**: `#playcua` on the Phenotype Discord.
+- **Discussions**: GitHub Discussions → *Q&A*.
+- **Office hours**: Tuesdays 15:00 UTC, calendar link in the
+  pinned issue.
 
-- [ ] Title matches `<type>(<scope>): <summary>`
-- [ ] Body references the issue / spec it closes (`Closes #123`)
-- [ ] At least 1 approving review from a CODEOWNER
-- [ ] All CI checks green (fmt, clippy, test, deny, audit, cov)
-- [ ] No new `TODO` without a tracking issue
-
-## Code Review
-
-Reviewers should:
-
-- **Be specific** — quote the line, suggest the fix, link the doc.
-- **Distinguish** blocking from non-blocking (prefix with `[blocking]`
-  or `[nit]`).
-- **Approve explicitly** — use the GitHub "Approve" button, not a
-  "Looks good" comment.
-
-Authors should:
-
-- **Respond to every comment** — either push a fix or explain why not.
-- **Keep the diff small** — split a 1500-line PR into 3 stacked PRs.
-- **Self-review first** — read your own diff on the GitHub PR view
-  before requesting review.
-
-Review SLA: 1 business day for the first round. If a reviewer is
-unreachable, ping `@KooshaPari` to reassign.
-
-## Reporting Issues
-
-Use the GitHub issue templates under `.github/ISSUE_TEMPLATE/`. Always
-include:
-
-- PlayCua version (`playcua --version`)
-- Operating system and architecture (`uname -a`)
-- Rust toolchain (`rustc --version`)
-- Reproduction steps (the smallest possible snippet)
-- Expected vs. actual behavior
-- Relevant logs (`RUST_LOG=debug playcua …`)
-
-## Security Disclosures
-
-For sensitive vulnerabilities, **do not open a public issue**. Follow
-the process in [`SECURITY.md`](./SECURITY.md). You can expect an
-acknowledgment within 48 hours and a triage decision within 7 days.
-
-## License
-
-By contributing, you agree that your contributions will be licensed
-under the **MIT OR Apache-2.0** license (dual-licensed, at the option
-of downstream consumers). See [`LICENSE`](./LICENSE) for the full text.
-
----
-
-Questions? Open a discussion at
-https://github.com/KooshaPari/PlayCua/discussions or reach out to
-@KooshaPari on the Phenotype Discord.
+Welcome aboard — we are glad you are here.
