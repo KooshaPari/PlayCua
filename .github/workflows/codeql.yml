@@ -13,10 +13,15 @@ permissions:
   contents: read
   security-events: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
+
 jobs:
   analyze:
     name: Analyze Rust
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       actions: read
       contents: read
