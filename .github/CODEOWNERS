@@ -1,5 +1,18 @@
-# Default owner for everything
+# CODEOWNERS — PlayCua
+# Default fallback owner
 * @KooshaPari
 
-# Specific ownership
-# Add specific paths and owners as needed
+# Code areas
+/src/ @KooshaPari
+/tests/ @KooshaPari
+/docs/ @KooshaPari
+
+# Configuration
+/.github/ @KooshaPari
+/Cargo.toml @KooshaPari
+/package.json @KooshaPari
+/go.mod @KooshaPari
+
+# Sensitive
+/SECURITY.md @KooshaPari
+/.github/workflows/ @KooshaPari

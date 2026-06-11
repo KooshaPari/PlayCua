@@ -1,0 +1,16 @@
+name: cargo-semver-checks
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  pull_request:
+    paths: ['**/Cargo.toml']
+  workflow_dispatch:
+
+jobs:
+  semver-checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239
