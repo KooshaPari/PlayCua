@@ -1,41 +1,98 @@
+# PlayCua canonical Taskfile (L2 #21).
+#
+# All `task` recipes mirror the per-task commands listed in CLAUDE.md
+# ("Quality Checks") and the .github/workflows/*.yml files. Long-running
+# recipes (test, build) carry explicit timeouts because the L1 audit
+# (`PlayCua/STATUS_2026_06_10.md`) reports that `cargo check` did not
+# complete within bounded local runs; the timeout guarantees we surface
+# the failure rather than letting CI hangs cascade.
+#
+# Pair with the sibling `justfile` for CI consumers that prefer `just`.
+# Both files are kept in lockstep via `scripts/migrate-make-to-task.sh`.
+#
+# Usage: `task <recipe>` (run from the repo root).
 version: '3'
+
+vars:
+  CARGO: 'cargo'
+  WORKSPACE_FLAG: '--workspace'
+  # Per L1 audit `PlayCua/STATUS_2026_06_10.md`: cargo check times out
+  # at 300s; allow 10m for the long-running recipes so we surface a
+  # clean failure instead of a CLI-level kill.
+  LONG_TIMEOUT: '10m'
 
 tasks:
   default:
     desc: List available tasks
-    cmds: [task --list-all]
-
-  build:
-    desc: cargo build --workspace
-    cmds: [cargo build --workspace]
+    cmds:
+      - 'task --list-all'
 
   test:
-    desc: cargo test --workspace
-    cmds: [cargo test --workspace]
+    desc: 'cargo test --workspace (timeout: {{.LONG_TIMEOUT}})'
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} test {{.WORKSPACE_FLAG}}'
+    timeout: '{{.LONG_TIMEOUT}}'
+
+  build:
+    desc: 'cargo build --workspace (timeout: {{.LONG_TIMEOUT}})'
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} build {{.WORKSPACE_FLAG}}'
+    timeout: '{{.LONG_TIMEOUT}}'
 
   lint:
-    desc: cargo clippy + rustfmt --check
+    desc: cargo clippy --workspace -- -D warnings
+    dir: '{{.TASKFILE_DIR}}'
     cmds:
-      - cargo clippy --workspace -- -D warnings
-      - cargo fmt --check
+      - '{{.CARGO}} clippy {{.WORKSPACE_FLAG}} -- -D warnings'
 
   fmt:
-    desc: cargo fmt
-    cmds: [cargo fmt]
+    desc: cargo fmt --all -- --check (idempotent format check)
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} fmt --all -- --check'
+
+  fmt-fix:
+    desc: cargo fmt --all (apply formatting)
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} fmt --all'
+
+  deny:
+    desc: cargo deny check (advisories, bans, licenses, sources)
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} deny check'
 
   audit:
-    desc: cargo deny check + cargo audit
+    desc: cargo audit (RustSec advisory database scan)
+    dir: '{{.TASKFILE_DIR}}'
     cmds:
-      - cargo deny check
-      - cargo audit
+      - '{{.CARGO}} audit'
 
   ci:
-    desc: Run full local CI sweep (lint + test + audit)
+    desc: Full local CI sweep (lint + fmt + test + deny)
+    dir: '{{.TASKFILE_DIR}}'
+    deps: [lint, fmt, test, deny]
     cmds:
-      - task: lint
-      - task: test
-      - task: audit
+      - 'echo "ci: all required gates passed (lint + fmt + test + deny)"'
+
+  hygiene:
+    desc: Code-hygiene sweep (fmt + lint + deny + audit)
+    dir: '{{.TASKFILE_DIR}}'
+    deps: [fmt, lint, deny, audit]
+    cmds:
+      - 'echo "hygiene: fmt + lint + deny + audit all clean"'
 
   docs:
     desc: cargo doc --no-deps --workspace
-    cmds: [cargo doc --no-deps --workspace]
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} doc --no-deps {{.WORKSPACE_FLAG}}'
+
+  clean:
+    desc: cargo clean (drop build artifacts)
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.CARGO}} clean'
