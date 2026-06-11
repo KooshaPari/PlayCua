@@ -1,4 +1,4 @@
-"""bare_cua.computer - async Python client for bare-cua-native Rust binary.
+"""playcua.computer - async Python client for playcua-native Rust binary.
 
 Spawns the native binary as a subprocess and communicates over stdio using
 newline-delimited JSON-RPC 2.0. No VM, no Docker, no network socket.
@@ -26,7 +26,7 @@ class ComputerError(Exception):
 
 
 class Computer:
-    """Async context manager that owns the bare-cua-native subprocess.
+    """Async context manager that owns the playcua-native subprocess.
 
     Usage::
 
@@ -38,14 +38,14 @@ class Computer:
     Parameters
     ----------
     native_path:
-        Path or name on PATH of the ``bare-cua-native`` binary.
+        Path or name on PATH of the ``playcua-native`` binary.
     log_level:
-        Passed as ``BARE_CUA_LOG`` env var; controls Rust tracing on stderr.
+        Passed as ``PLAYCUA_LOG`` env var; controls Rust tracing on stderr.
     """
 
     def __init__(
         self,
-        native_path: str = "bare-cua-native",
+        native_path: str = "playcua-native",
         log_level: str = "info",
     ) -> None:
         self._native_path = native_path
@@ -62,7 +62,7 @@ class Computer:
         await self._stop()
 
     async def _start(self) -> None:
-        env = {**os.environ, "BARE_CUA_LOG": self._log_level}
+        env = {**os.environ, "PLAYCUA_LOG": self._log_level}
         self._proc = await asyncio.create_subprocess_exec(
             self._native_path,
             stdin=asyncio.subprocess.PIPE,
@@ -72,7 +72,7 @@ class Computer:
         )
         ok = await self.ping()
         if not ok:
-            raise RuntimeError("bare-cua-native did not respond to ping")
+            raise RuntimeError("playcua-native did not respond to ping")
 
     async def _stop(self) -> None:
         if self._proc is not None:
@@ -108,7 +108,7 @@ class Computer:
             assert self._proc.stdout is not None
             raw = await self._proc.stdout.readline()
             if not raw:
-                raise RuntimeError("bare-cua-native closed stdout unexpectedly")
+                raise RuntimeError("playcua-native closed stdout unexpectedly")
             resp = json.loads(raw.decode())
         if resp.get("error"):
             err = resp["error"]

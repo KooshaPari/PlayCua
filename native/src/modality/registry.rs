@@ -15,7 +15,7 @@ use std::sync::Arc;
 pub struct ModalityEnv {
     /// `--modality` CLI flag (highest precedence).
     pub flag: Option<ModalityKind>,
-    /// `BARE_CUA_MODALITY` env var (or `BARE_CUA_MODALITY` parsed by the caller).
+    /// `PLAYCUA_MODALITY` env var (or `PLAYCUA_MODALITY` parsed by the caller).
     pub env: Option<ModalityKind>,
     /// If true, the selector falls back to a host-OS heuristic.
     pub auto: bool,
@@ -25,10 +25,10 @@ impl ModalityEnv {
     /// Build a ModalityEnv from the current process argv + env.
     ///
     /// Recognized sources:
-    /// - `BARE_CUA_MODALITY` env var (lowercase; "auto" enables heuristic)
+    /// - `PLAYCUA_MODALITY` env var (lowercase; "auto" enables heuristic)
     /// - caller-supplied `flag` from CLI parsing
     pub fn from_process_env(flag: Option<ModalityKind>) -> Self {
-        let env_str = std::env::var("BARE_CUA_MODALITY").ok();
+        let env_str = std::env::var("PLAYCUA_MODALITY").ok();
         let (env, auto) = match env_str.as_deref() {
             Some("auto") => (None, true),
             Some(other) => (ModalityKind::parse(other), false),

@@ -1,6 +1,6 @@
 //! Modality abstraction — pluggable execution environment selection.
 //!
-//! A **modality** is the runtime environment in which bare-cua-native operates.
+//! A **modality** is the runtime environment in which playcua-native operates.
 //! PlayCua supports five modalities per the NVMSCUA framework (see SPEC.md):
 //!
 //! - **native**: drive the host OS directly (the only modality with a fully-wired
@@ -30,7 +30,7 @@
 //! ## Selection precedence
 //!
 //! 1. `--modality` CLI flag (highest)
-//! 2. `BARE_CUA_MODALITY` env var
+//! 2. `PLAYCUA_MODALITY` env var
 //! 3. `auto` heuristic (host OS + binary probing)
 //! 4. `native` (lowest — always works)
 

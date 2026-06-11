@@ -1,12 +1,12 @@
-//! Unix-socket daemon mode for `bare-cua-native`.
+//! Unix-socket daemon mode for `playcua-native`.
 //!
-//! When the user passes `--socket <path>` to `bare-cua-native`, the daemon
+//! When the user passes `--socket <path>` to `playcua-native`, the daemon
 //! binds a Unix-domain stream socket at that path and accepts concurrent
 //! client connections, each of which gets the same JSON-RPC 2.0 / stdio
 //! protocol as the stdio mode.
 //!
-//! Why: `bare-cua-cli` spawns `bare-cua-native` per call today. For tight
-//! loops (`for i in $(seq 1 1000); do bare-cua-cli click $i $i; done`) the
+//! Why: `playcua-cli` spawns `playcua-native` per call today. For tight
+//! loops (`for i in $(seq 1 1000); do playcua-cli click $i $i; done`) the
 //! process-fork cost dominates. The Unix-socket daemon eliminates that:
 //! the CLI connects, sends one newline-delimited JSON-RPC request, reads
 //! the response, and disconnects — no fork, no cold start.
@@ -63,7 +63,7 @@ pub async fn run(app: Arc<App>, socket_path: PathBuf) -> Result<()> {
     let listener = UnixListener::bind(&socket_path)
         .with_context(|| format!("binding Unix socket at {}", socket_path.display()))?;
 
-    info!(socket = %socket_path.display(), "bare-cua daemon listening on Unix socket");
+    info!(socket = %socket_path.display(), "playcua daemon listening on Unix socket");
 
     // Clean up the socket file on graceful shutdown. The DeferCleanup
     // destructor also removes it; this handles the Ctrl-C case.
@@ -168,7 +168,7 @@ mod tests {
 
     fn tempdir_in_target() -> PathBuf {
         let p = std::env::temp_dir().join(format!(
-            "bare-cua-socket-test-{}-{}",
+            "playcua-socket-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

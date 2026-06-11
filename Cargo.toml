@@ -6,7 +6,7 @@ resolver = "2"
 rust-version = "1.75"
 version = "0.1.0"
 edition = "2021"
-authors = ["bare-cua contributors"]
+authors = ["playcua contributors"]
 license = "MIT"
 
 [workspace.dependencies]

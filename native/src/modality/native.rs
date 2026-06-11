@@ -7,7 +7,7 @@
 //!
 //! `Native` is selected when:
 //! 1. `--modality native` is set explicitly, OR
-//! 2. `BARE_CUA_MODALITY=native` is set, OR
+//! 2. `PLAYCUA_MODALITY=native` is set, OR
 //! 3. `auto` is selected and no other modality passes `is_available()`.
 
 use super::{Modality, ModalityKind};

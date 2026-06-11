@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace BareCua;
 
 /// <summary>
-/// Thin C# client for the bare-cua-native binary via stdio JSON-RPC 2.0.
+/// Thin C# client for the playcua-native binary via stdio JSON-RPC 2.0.
 /// Drop-in replacement for DINOForge MCP server screenshot/input tools.
 /// </summary>
 /// <remarks>
@@ -36,11 +36,11 @@ public sealed class NativeComputer : IAsyncDisposable
     /// <summary>
     /// Start the native binary and verify it responds to ping.
     /// </summary>
-    /// <param name="nativePath">Path or name of the bare-cua-native executable.</param>
-    /// <param name="logLevel">Value for BARE_CUA_LOG env var (Rust tracing level).</param>
+    /// <param name="nativePath">Path or name of the playcua-native executable.</param>
+    /// <param name="logLevel">Value for PLAYCUA_LOG env var (Rust tracing level).</param>
     /// <param name="ct">Cancellation token.</param>
     public static async Task<NativeComputer> StartAsync(
-        string nativePath = "bare-cua-native",
+        string nativePath = "playcua-native",
         string logLevel = "info",
         CancellationToken ct = default)
     {
@@ -53,7 +53,7 @@ public sealed class NativeComputer : IAsyncDisposable
             StandardInputEncoding = Encoding.UTF8,
             StandardOutputEncoding = Encoding.UTF8,
         };
-        psi.Environment["BARE_CUA_LOG"] = logLevel;
+        psi.Environment["PLAYCUA_LOG"] = logLevel;
 
         var computer = new NativeComputer
         {
@@ -63,7 +63,7 @@ public sealed class NativeComputer : IAsyncDisposable
         // Verify alive.
         var pong = await computer.CallAsync("ping", null, ct);
         if (pong.ValueKind == JsonValueKind.Undefined || !pong.TryGetProperty("ok", out _))
-            throw new InvalidOperationException("bare-cua-native did not respond to ping");
+            throw new InvalidOperationException("playcua-native did not respond to ping");
 
         return computer;
     }
@@ -297,7 +297,7 @@ public sealed class NativeComputer : IAsyncDisposable
 
             string? respLine = await _proc.StandardOutput.ReadLineAsync(ct);
             if (respLine is null)
-                throw new InvalidOperationException("bare-cua-native closed stdout unexpectedly");
+                throw new InvalidOperationException("playcua-native closed stdout unexpectedly");
 
             using JsonDocument doc = JsonDocument.Parse(respLine);
             var root = doc.RootElement.Clone();

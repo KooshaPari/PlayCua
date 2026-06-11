@@ -10,7 +10,7 @@
 //! 2. `which firejail` (Linux)
 //! 3. `which firecracker` (Linux)
 //! 4. `which runsc` (gVisor, Linux)
-//! 5. `$BARE_CUA_SANDBOX_BACKEND` env var override
+//! 5. `$PLAYCUA_SANDBOX_BACKEND` env var override
 //!
 //! If any probe succeeds, the modality reports available. The actual
 //! launch-and-tunnel integration is a follow-up (ADR-006).
@@ -53,7 +53,7 @@ impl SandboxModality {
 
     fn probe(&self) -> Option<SandboxBackend> {
         self.cached.get_or_init(|| {
-            if let Ok(override_bin) = std::env::var("BARE_CUA_SANDBOX_BACKEND") {
+            if let Ok(override_bin) = std::env::var("PLAYCUA_SANDBOX_BACKEND") {
                 return Some(match override_bin.as_str() {
                     "sandbox-exec" => SandboxBackend::SandboxExec,
                     "firejail" => SandboxBackend::Firejail,

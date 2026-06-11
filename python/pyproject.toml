@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bare-cua"
+name = "playcua"
 version = "0.1.0"
 description = "CUA fork - bare metal computer-use agent without VM layer"
 readme = "../../README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "bare-cua contributors" }]
+authors = [{ name = "playcua contributors" }]
 keywords = ["computer-use", "automation", "agent", "cua"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -35,11 +35,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/KooshaPari/bare-cua"
-Repository = "https://github.com/KooshaPari/bare-cua"
+Homepage = "https://github.com/KooshaPari/PlayCua"
+Repository = "https://github.com/KooshaPari/PlayCua"
 
 [tool.hatch.build.targets.wheel]
-packages = ["bare_cua"]
+packages = ["playcua"]
 
 [tool.ruff]
 line-length = 100

@@ -4,11 +4,11 @@
 //! input.click, input.scroll, input.move, windows.list, windows.focus,
 //! windows.find, process.launch, process.kill, process.status, analysis.diff,
 //! analysis.hash) are exposed as MCP tools. This lets Claude Desktop, Cursor,
-//! `mcp-agent`, and any MCP-compatible client drive bare-cua without writing
+//! `mcp-agent`, and any MCP-compatible client drive playcua without writing
 //! a JSON-RPC pipe of their own.
 //!
 //! Transport: stdio (default for Claude/Cursor) or streamable HTTP (for
-//! multi-client server deployments). See `bin/bare-cua-mcp.rs`.
+//! multi-client server deployments). See `bin/playcua-mcp.rs`.
 
 use std::sync::Arc;
 
@@ -147,7 +147,7 @@ pub struct HashParams {
 // The MCP server itself
 // ---------------------------------------------------------------------------
 
-/// MCP server exposing bare-cua's 14 IPC methods as tools.
+/// MCP server exposing playcua's 14 IPC methods as tools.
 ///
 /// Cheap to clone (the inner `Dispatcher` is wrapped in `Arc`, the
 /// `ToolRouter` is a `#[tool_router]`-generated field).
@@ -384,13 +384,13 @@ impl ServerHandler for BareCuaMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(
-                Implementation::new("bare-cua", env!("CARGO_PKG_VERSION"))
-                    .with_title("bare-cua computer-use agent".to_string())
+                Implementation::new("playcua", env!("CARGO_PKG_VERSION"))
+                    .with_title("playcua computer-use agent".to_string())
                     .with_website_url("https://github.com/KooshaPari/PlayCua".to_string()),
             )
             .with_protocol_version(ProtocolVersion::V_2025_06_18)
             .with_instructions(
-                "bare-cua is a computer-use agent for macOS, Linux, and Windows. \
+                "playcua is a computer-use agent for macOS, Linux, and Windows. \
                  14 tools are available for screen capture, keyboard/mouse input, \
                  window management, process lifecycle, and image analysis. \
                  For multi-step tasks, prefer the screenshot -> action -> screenshot loop."

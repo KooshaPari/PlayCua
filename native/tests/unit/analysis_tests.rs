@@ -1,12 +1,12 @@
 //! Unit tests for the NativeAnalysisAdapter (AnalysisPort implementation).
 //!
 //! These are integration-style tests under native/tests/ that compile against
-//! the bare-cua-native crate in library mode. All test helpers are defined
+//! the playcua-native crate in library mode. All test helpers are defined
 //! inline — no external test-helper crates are required.
 
-use bare_cua_native::adapters::analysis_adapter::NativeAnalysisAdapter;
-use bare_cua_native::domain::analysis::AnalysisError;
-use bare_cua_native::ports::AnalysisPort;
+use playcua_native::adapters::analysis_adapter::NativeAnalysisAdapter;
+use playcua_native::domain::analysis::AnalysisError;
+use playcua_native::ports::AnalysisPort;
 
 // ---------------------------------------------------------------------------
 // Helper: encode a solid-color RGBA image as PNG bytes.

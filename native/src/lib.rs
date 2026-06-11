@@ -1,4 +1,4 @@
-//! bare-cua-native library entry point.
+//! playcua-native library entry point.
 //!
 //! Re-exports all public modules so integration tests and external crates
 //! can import domain types, port traits, and adapter implementations.
