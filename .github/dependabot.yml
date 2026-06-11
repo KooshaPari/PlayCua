@@ -1,12 +1,106 @@
+# ============================================================================
+# PlayCua — Dependabot configuration
+# ============================================================================
+#
+# L2 #29 (FLEET_100TASK_DAG_V3.md) — canonical dependabot baseline.
+# Ecosystems:
+#   - cargo            (root workspace)
+#   - pip              (python/ — bare_cua bindings + tests)
+#   - github-actions   (.github/workflows/)
+#
+# Schedule: weekly, staggered across the week so a single wave of PRs
+# never overwhelms review capacity.
+# ============================================================================
+
 version: 2
+
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+  # --------------------------------------------------------------------------
+  # Rust workspace (root)
+  # --------------------------------------------------------------------------
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "rust"
+      - "playcua"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    ignore:
+      - dependency-name: "xcap"
+        versions:
+          - ">= 0.10"
+      - dependency-name: "image"
+        versions:
+          - ">= 0.26"
+
+  # --------------------------------------------------------------------------
+  # Python (bare_cua bindings + tests)
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/python"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+      timezone: "UTC"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "playcua"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # --------------------------------------------------------------------------
+  # GitHub Actions (CI)
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+      - "playcua"
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
