@@ -1,35 +1,22 @@
-# ============================================================================
-# PlayCua — Dependabot configuration
-# ============================================================================
-#
-# L2 #29 (FLEET_100TASK_DAG_V3.md) — canonical dependabot baseline.
-# Ecosystems:
-#   - cargo            (root workspace)
-#   - pip              (python/ — bare_cua bindings + tests)
-#   - github-actions   (.github/workflows/)
-#
-# Schedule: weekly, staggered across the week so a single wave of PRs
-# never overwhelms review capacity.
-# ============================================================================
+# L2 #29 Dependabot baseline for PlayCua.
+# Requested cadence:
+# - cargo: weekly Monday
+# - npm: weekly Tuesday
+# - go-modules: weekly Wednesday (Dependabot ecosystem key: gomod)
+# - github-actions: weekly Thursday
+# - dockerfile: weekly Friday (Dependabot ecosystem key: docker)
 
 version: 2
 
 updates:
-  # --------------------------------------------------------------------------
-  # Rust workspace (root)
-  # --------------------------------------------------------------------------
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "UTC"
+    reviewers:
+      - "kooshapari"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
-      - "playcua"
     groups:
       minor-and-patch:
         applies-to: version-updates
@@ -44,32 +31,15 @@ updates:
           - "*"
         update-types:
           - "major"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    ignore:
-      - dependency-name: "xcap"
-        versions:
-          - ">= 0.10"
-      - dependency-name: "image"
-        versions:
-          - ">= 0.26"
 
-  # --------------------------------------------------------------------------
-  # Python (bare_cua bindings + tests)
-  # --------------------------------------------------------------------------
-  - package-ecosystem: "pip"
-    directory: "/python"
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "tuesday"
-      time: "06:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "python"
-      - "playcua"
+    reviewers:
+      - "kooshapari"
+    open-pull-requests-limit: 10
     groups:
       minor-and-patch:
         applies-to: version-updates
@@ -78,29 +48,79 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
+      major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
-  # --------------------------------------------------------------------------
-  # GitHub Actions (CI)
-  # --------------------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    reviewers:
+      - "kooshapari"
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+
   - package-ecosystem: "github-actions"
-    directory: "/.github/workflows"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+    reviewers:
+      - "kooshapari"
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+
+  - package-ecosystem: "docker"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "friday"
-      time: "06:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "ci"
-      - "playcua"
+    reviewers:
+      - "kooshapari"
+    open-pull-requests-limit: 10
     groups:
-      actions:
+      minor-and-patch:
+        applies-to: version-updates
         patterns:
           - "*"
-    commit-message:
-      prefix: "ci(deps)"
-      include: "scope"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+

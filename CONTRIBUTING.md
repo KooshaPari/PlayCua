@@ -1,23 +1,16 @@
 # Contributing to PlayCua
 
-Thanks for your interest. This project is part of the [Phenotype](https://github.com/KooshaPari) ecosystem.
+Thanks for helping improve PlayCua. This repo follows the broader Phenotype
+monorepo contribution standards; start with the
+[monorepo CONTRIBUTING guide](../CONTRIBUTING.md) for shared workflow, review,
+and commit expectations.
 
-## Workflow
+## Make your first PR
 
-1. Fork.
-2. Topic branch off `main`: `git checkout -b feat/short-description`.
-3. Conventional Commits preferred (`feat:`, `fix:`, `docs:`, `chore:`).
-4. Run local lint/format/test before pushing.
-5. PR against `main` with clear description.
+1. Fork or branch from the latest main branch.
+2. Make a focused change with tests or documentation updates when relevant.
+3. Run the project checks that apply to your change.
+4. Open a pull request with a clear summary and validation notes.
 
-## Code of Conduct
-
-By participating, you agree to abide by [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
-
-## Reporting Issues
-
-Use [GitHub Issues](../../issues) with reproduction + environment.
-
-## Security
-
-For sensitive disclosures, see [SECURITY.md](./SECURITY.md).
+Keep changes small, preserve existing project style, and avoid including
+secrets or local machine state in commits.
