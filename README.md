@@ -7,8 +7,20 @@
 
 # bare-cua
 
-[![Build](https://img.shields.io/github/actions/workflow/status/KooshaPari/PlayCua/quality-gate.yml?branch=master&label=build)](https://github.com/KooshaPari/PlayCua/actions)
-[![Release](https://img.shields.io/github/v/release/KooshaPari/PlayCua?include_prereleases&sort=semver)](https://github.com/KooshaPari/PlayCua/releases)
+## DEPRECATED — merged into PlayCua
+
+> **This repository is frozen at the 2026-06-08 snapshot (commit `e9b44d4`) and is no longer maintained.**
+>
+> All active development has moved to **[PlayCua](https://github.com/KooshaPari/PlayCua)**, which is a **strict superset** of this codebase:
+>
+> - **7 commits ahead** of this snapshot (PlayCua/master at `110a28c` vs. this repo at `e9b44d4`)
+> - **+4 297 LOC** (15 859 vs. 11 562)
+> - Adds the **5-modality registry** (native / sandbox / nvms / wsl / container), the **MCP server** (`bare-cua-mcp`), the **Unix-socket daemon** + **CLI client** (`bare-cua-cli`), and the **Skill SDK**.
+>
+> **Migration path:** use [PlayCua](https://github.com/KooshaPari/PlayCua) directly. New issues and PRs should be opened there. This repository is scheduled to be archived on 2026-09-01.
+>
+> See `plans/2026-06-09-playcua-barecua-merge-plan-v1.md` for the full rationale.
+
 [![License](https://img.shields.io/github/license/KooshaPari/PlayCua)](LICENSE)
 [![Phenotype](https://img.shields.io/badge/Phenotype-org-blueviolet)](https://github.com/KooshaPari)
 
