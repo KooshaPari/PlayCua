@@ -52,28 +52,31 @@ impl SandboxModality {
     }
 
     fn probe(&self) -> Option<SandboxBackend> {
-        self.cached.get_or_init(|| {
-            if let Ok(override_bin) = std::env::var("PLAYCUA_SANDBOX_BACKEND") {
-                return Some(match override_bin.as_str() {
-                    "sandbox-exec" => SandboxBackend::SandboxExec,
-                    "firejail" => SandboxBackend::Firejail,
-                    "firecracker" => SandboxBackend::Firecracker,
-                    "runsc" | "gvisor" => SandboxBackend::Runsc,
-                    _ => return None,
-                });
-            }
-            for backend in [
-                SandboxBackend::SandboxExec,
-                SandboxBackend::Firejail,
-                SandboxBackend::Firecracker,
-                SandboxBackend::Runsc,
-            ] {
-                if which(backend.binary()).is_some() {
-                    return Some(backend);
+        self.cached
+            .get_or_init(|| {
+                if let Ok(override_bin) = std::env::var("PLAYCUA_SANDBOX_BACKEND") {
+                    return Some(match override_bin.as_str() {
+                        "sandbox-exec" => SandboxBackend::SandboxExec,
+                        "firejail" => SandboxBackend::Firejail,
+                        "firecracker" => SandboxBackend::Firecracker,
+                        "runsc" | "gvisor" => SandboxBackend::Runsc,
+                        _ => return None,
+                    });
                 }
-            }
-            None
-        }).as_ref().copied()
+                for backend in [
+                    SandboxBackend::SandboxExec,
+                    SandboxBackend::Firejail,
+                    SandboxBackend::Firecracker,
+                    SandboxBackend::Runsc,
+                ] {
+                    if which(backend.binary()).is_some() {
+                        return Some(backend);
+                    }
+                }
+                None
+            })
+            .as_ref()
+            .copied()
     }
 }
 

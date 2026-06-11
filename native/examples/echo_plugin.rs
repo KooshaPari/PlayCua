@@ -155,7 +155,10 @@ async fn main() -> anyhow::Result<()> {
             Response::err(
                 id,
                 -32601,
-                format!("Method not found: {method} (registered: {})", registry.len()),
+                format!(
+                    "Method not found: {method} (registered: {})",
+                    registry.len()
+                ),
             )
         };
 
@@ -176,10 +179,7 @@ mod tests {
     #[tokio::test]
     async fn echo_plugin_round_trips_params() {
         let p = EchoPlugin::new("test");
-        let out = p
-            .handle(json!({ "hello": "world" }))
-            .await
-            .unwrap();
+        let out = p.handle(json!({ "hello": "world" })).await.unwrap();
         assert_eq!(out["echoed"]["hello"], "world");
         assert_eq!(out["tag"], "test");
     }

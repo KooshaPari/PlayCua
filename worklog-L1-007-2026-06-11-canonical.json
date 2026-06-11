@@ -1,0 +1,21 @@
+{
+  "status": "complete",
+  "task_id": "L1-007",
+  "agent_id": "codex",
+  "files_changed": [
+    "native/src/adapters/windows/wgc.rs",
+    "native/src/adapters/xcap.rs"
+  ],
+  "commit_sha": "COMMIT_BLOCKED_BY_SANDBOX",
+  "verification_result": {
+    "status": "passed",
+    "commands": [
+      "cargo check -p playcua-native",
+      "cargo test -p playcua-native",
+      "npm run build"
+    ],
+    "notes": "cargo check and cargo test passed; npm run build was not runnable because no package.json exists at the repository root; git commit was blocked because the worktree index.lock lives under the parent repo .git outside the writable sandbox"
+  },
+  "started_at": "2026-06-11T00:00:00-07:00",
+  "completed_at": "2026-06-11T00:00:00-07:00"
+}

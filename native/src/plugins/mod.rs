@@ -26,13 +26,19 @@ pub struct PluginRegistry {
 impl PluginRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
-        Self { plugins: Vec::new() }
+        Self {
+            plugins: Vec::new(),
+        }
     }
 
     /// Register a plugin. If a plugin with the same method name is already
     /// registered, the new one replaces it.
     pub fn register(&mut self, plugin: Box<dyn MethodPlugin>) {
-        if let Some(pos) = self.plugins.iter().position(|p| p.method_name() == plugin.method_name()) {
+        if let Some(pos) = self
+            .plugins
+            .iter()
+            .position(|p| p.method_name() == plugin.method_name())
+        {
             self.plugins[pos] = plugin;
         } else {
             self.plugins.push(plugin);
@@ -86,7 +92,9 @@ mod tests {
         let mut registry = PluginRegistry::new();
         assert!(registry.find("test.echo").is_none());
         registry.register(Box::new(EchoPlugin));
-        let plugin = registry.find("test.echo").expect("plugin should be registered");
+        let plugin = registry
+            .find("test.echo")
+            .expect("plugin should be registered");
         let result = plugin.handle(json!({ "msg": "hello" })).await.unwrap();
         assert_eq!(result, json!({ "msg": "hello" }));
     }

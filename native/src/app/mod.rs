@@ -136,10 +136,16 @@ fn build_window() -> Arc<dyn WindowPort> {
     struct NoopWindowAdapter;
     #[async_trait]
     impl WindowPort for NoopWindowAdapter {
-        async fn list_windows(&self) -> Result<Vec<WindowInfo>, WindowError> { Ok(vec![]) }
-        async fn find_window(&self, _: WindowFilter) -> Result<Option<WindowInfo>, WindowError> { Ok(None) }
+        async fn list_windows(&self) -> Result<Vec<WindowInfo>, WindowError> {
+            Ok(vec![])
+        }
+        async fn find_window(&self, _: WindowFilter) -> Result<Option<WindowInfo>, WindowError> {
+            Ok(None)
+        }
         async fn focus_window(&self, _: usize) -> Result<(), WindowError> {
-            Err(WindowError::Failed("not supported on this platform".to_string()))
+            Err(WindowError::Failed(
+                "not supported on this platform".to_string(),
+            ))
         }
     }
     tracing::warn!("Windows: no-op adapter (unknown platform)");

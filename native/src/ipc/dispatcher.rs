@@ -37,7 +37,14 @@ impl Dispatcher {
         analysis: Arc<dyn AnalysisPort>,
         selected_modality: SelectedModality,
     ) -> Self {
-        Self { capture, input, windows, process, analysis, selected_modality }
+        Self {
+            capture,
+            input,
+            windows,
+            process,
+            analysis,
+            selected_modality,
+        }
     }
 
     /// Dispatch a JSON-RPC request to the appropriate port method.
@@ -110,12 +117,15 @@ impl Dispatcher {
             self.capture.capture_display(p.monitor.unwrap_or(0)).await
         };
         match result {
-            Ok(frame) => Response::ok(id, json!({
-                "data": frame.data,
-                "width": frame.width,
-                "height": frame.height,
-                "format": "png",
-            })),
+            Ok(frame) => Response::ok(
+                id,
+                json!({
+                    "data": frame.data,
+                    "width": frame.width,
+                    "height": frame.height,
+                    "format": "png",
+                }),
+            ),
             Err(e) => Response::internal_error(id, e.to_string()),
         }
     }
@@ -132,7 +142,11 @@ impl Dispatcher {
         }
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "lowercase")]
-        enum InputKeyAction { Press, Down, Up }
+        enum InputKeyAction {
+            Press,
+            Down,
+            Up,
+        }
 
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
@@ -151,7 +165,9 @@ impl Dispatcher {
 
     async fn handle_input_type(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { text: String }
+        struct P {
+            text: String,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -172,10 +188,18 @@ impl Dispatcher {
         }
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "lowercase")]
-        enum IpcMouseButton { Left, Right, Middle }
+        enum IpcMouseButton {
+            Left,
+            Right,
+            Middle,
+        }
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "lowercase")]
-        enum IpcMouseAction { Click, Down, Up }
+        enum IpcMouseAction {
+            Click,
+            Down,
+            Up,
+        }
 
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
@@ -191,7 +215,12 @@ impl Dispatcher {
             IpcMouseAction::Down => MouseAction::Down,
             IpcMouseAction::Up => MouseAction::Up,
         };
-        let event = MouseEvent::Click { x: p.x, y: p.y, button, action };
+        let event = MouseEvent::Click {
+            x: p.x,
+            y: p.y,
+            button,
+            action,
+        };
         match self.input.mouse_event(event).await {
             Ok(()) => Response::ok(id, json!({ "ok": true })),
             Err(e) => Response::internal_error(id, e.to_string()),
@@ -208,7 +237,12 @@ impl Dispatcher {
         }
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "lowercase")]
-        enum IpcScrollDir { Up, Down, Left, Right }
+        enum IpcScrollDir {
+            Up,
+            Down,
+            Left,
+            Right,
+        }
 
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
@@ -220,7 +254,12 @@ impl Dispatcher {
             IpcScrollDir::Left => ScrollDirection::Left,
             IpcScrollDir::Right => ScrollDirection::Right,
         };
-        let event = MouseEvent::Scroll { x: p.x, y: p.y, direction, amount: p.amount.unwrap_or(3) };
+        let event = MouseEvent::Scroll {
+            x: p.x,
+            y: p.y,
+            direction,
+            amount: p.amount.unwrap_or(3),
+        };
         match self.input.mouse_event(event).await {
             Ok(()) => Response::ok(id, json!({ "ok": true })),
             Err(e) => Response::internal_error(id, e.to_string()),
@@ -229,7 +268,10 @@ impl Dispatcher {
 
     async fn handle_input_move(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { x: i32, y: i32 }
+        struct P {
+            x: i32,
+            y: i32,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -257,7 +299,9 @@ impl Dispatcher {
 
     async fn handle_windows_focus(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { hwnd: usize }
+        struct P {
+            hwnd: usize,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -270,12 +314,18 @@ impl Dispatcher {
 
     async fn handle_windows_find(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize, Default)]
-        struct P { title: Option<String>, pid: Option<u32> }
+        struct P {
+            title: Option<String>,
+            pid: Option<u32>,
+        }
         let p: P = match deserialize_or_default(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e),
         };
-        let filter = WindowFilter { title: p.title, pid: p.pid };
+        let filter = WindowFilter {
+            title: p.title,
+            pid: p.pid,
+        };
         match self.windows.find_window(filter).await {
             Ok(Some(w)) => match serde_json::to_value(&w) {
                 Ok(v) => Response::ok(id, v),
@@ -292,7 +342,11 @@ impl Dispatcher {
 
     async fn handle_process_launch(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { path: String, args: Option<Vec<String>>, cwd: Option<String> }
+        struct P {
+            path: String,
+            args: Option<Vec<String>>,
+            cwd: Option<String>,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -310,7 +364,9 @@ impl Dispatcher {
 
     async fn handle_process_kill(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { pid: u32 }
+        struct P {
+            pid: u32,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -323,13 +379,18 @@ impl Dispatcher {
 
     async fn handle_process_status(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { pid: u32 }
+        struct P {
+            pid: u32,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
         };
         match self.process.status(p.pid).await {
-            Ok(st) => Response::ok(id, json!({ "running": st.running, "exit_code": st.exit_code })),
+            Ok(st) => Response::ok(
+                id,
+                json!({ "running": st.running, "exit_code": st.exit_code }),
+            ),
             Err(e) => Response::internal_error(id, e.to_string()),
         }
     }
@@ -340,7 +401,11 @@ impl Dispatcher {
 
     async fn handle_analysis_diff(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { image_a: String, image_b: String, threshold: Option<f32> }
+        struct P {
+            image_a: String,
+            image_b: String,
+            threshold: Option<f32>,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
@@ -355,14 +420,19 @@ impl Dispatcher {
         };
         let threshold = p.threshold.unwrap_or(0.02);
         match self.analysis.diff(&bytes_a, &bytes_b, threshold).await {
-            Ok(r) => Response::ok(id, json!({ "changed": r.changed, "change_ratio": r.change_ratio })),
+            Ok(r) => Response::ok(
+                id,
+                json!({ "changed": r.changed, "change_ratio": r.change_ratio }),
+            ),
             Err(e) => Response::internal_error(id, e.to_string()),
         }
     }
 
     async fn handle_analysis_hash(&self, id: Value, params: Value) -> Response {
         #[derive(serde::Deserialize)]
-        struct P { image: String }
+        struct P {
+            image: String,
+        }
         let p: P = match serde_json::from_value(params) {
             Ok(v) => v,
             Err(e) => return Response::invalid_params(id, e.to_string()),
