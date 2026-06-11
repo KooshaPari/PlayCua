@@ -1,4 +1,4 @@
-# bare-cua Plan
+# playcua Plan
 
 ## Overview
 Native Rust binary replacing VM layer with stdio JSON-RPC 2.0.

@@ -16,7 +16,7 @@
 //!
 //! 1. Spawn `nvms run <config>` on first action (lazy init).
 //! 2. Tunnel capture/input through the container's IPC.
-//! 3. Honor `BARE_CUA_NVMS_CONFIG` env var (path to nvms.toml).
+//! 3. Honor `PLAYCUA_NVMS_CONFIG` env var (path to nvms.toml).
 //! 4. Multi-tenant: share a single nvms runtime across modalities.
 
 use super::{Modality, ModalityKind};

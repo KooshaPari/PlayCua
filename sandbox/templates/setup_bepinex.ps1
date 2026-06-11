@@ -35,7 +35,7 @@ param(
     [string]$DINOForgeRepo = "C:\DINOForge",
     [string]$PluginBin  = "C:\DINOForge\bin",
     [string]$SharedDir  = "C:\SandboxShared",
-    [string]$NativeBin  = "C:\SandboxInit\bare-cua-native.exe",
+    [string]$NativeBin  = "C:\SandboxInit\playcua-native.exe",
     [int]   $NativePort = 8765
 )
 
@@ -107,9 +107,9 @@ redirectOutputLog=false
 "@ | Set-Content -Path $DoorstopCfg -Encoding UTF8
     }
 
-    # --- Start bare-cua-native TCP listener (for Python host to connect) ---
+    # --- Start playcua-native TCP listener (for Python host to connect) ---
     if (Test-Path $NativeBin) {
-        Write-Step "Starting bare-cua-native on port $NativePort"
+        Write-Step "Starting playcua-native on port $NativePort"
         Start-Process -FilePath $NativeBin -ArgumentList "--port", $NativePort -WindowStyle Hidden
 
         # Discover our IP on the Hyper-V Default Switch (NAT interface)
@@ -125,7 +125,7 @@ redirectOutputLog=false
             Set-Content -Path (Join-Path $SharedDir "sandbox_ip.txt") -Value $SandboxIP
         }
     } else {
-        Write-Warning "bare-cua-native not found at $NativeBin. TCP IPC unavailable."
+        Write-Warning "playcua-native not found at $NativeBin. TCP IPC unavailable."
     }
 
     Write-Step "BepInEx setup complete."

@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-06-08
 - Deciders: Koosha, Forge
-- Supersedes: implicit assumption that "bare-cua = bare metal" (from commit ab9d42a)
+- Supersedes: implicit assumption that "playcua = bare metal" (from commit ab9d42a)
 
 ## Context
 
@@ -115,7 +115,7 @@ the single integration point with modalities.
 
 ## Alternatives considered
 
-- **Per-modality binary** (e.g. `bare-cua-native-wsl`, `bare-cua-native-docker`).
+- **Per-modality binary** (e.g. `playcua-native-wsl`, `playcua-native-docker`).
   Rejected: proliferates binaries, complicates MCP server config, harder to
   compose.
 - **Runtime detection of "the right modality"** (e.g. auto-pick WSL when

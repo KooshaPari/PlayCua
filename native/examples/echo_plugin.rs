@@ -4,7 +4,7 @@
 //!
 //! 1. Define a struct that holds plugin state (here: a struct with no
 //!    state, but the pattern is `Arc<Mutex<T>>` for shared state).
-//! 2. Implement `bare_cua_native::plugins::MethodPlugin` for it.
+//! 2. Implement `playcua_native::plugins::MethodPlugin` for it.
 //! 3. Register the plugin in a `PluginRegistry`.
 //! 4. Drive a JSON-RPC 2.0 loop that consults the registry for any
 //!    method not handled by a built-in.
@@ -16,7 +16,7 @@
 //! ```
 //!
 //! In another terminal, talk to it the same way you'd talk to
-//! `bare-cua-native`:
+//! `playcua-native`:
 //!
 //! ```bash
 //! $ echo '{"jsonrpc":"2.0","id":1,"method":"ping"}' | cargo run --example echo_plugin
@@ -33,14 +33,14 @@
 //! - Plugins can live entirely outside the daemon crate
 //! - The same `MethodPlugin` trait is consumed by the binary's own
 //!   dispatcher, with no monkey-patching or trait-object casting
-//! - The JSON-RPC 2.0 wire format is identical to `bare-cua-native`
+//! - The JSON-RPC 2.0 wire format is identical to `playcua-native`
 //! - Testability: the plugin can be unit-tested without any I/O
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bare_cua_native::ipc::{read_request, write_response, Response};
-use bare_cua_native::plugins::{MethodPlugin, PluginRegistry};
+use playcua_native::ipc::{read_request, write_response, Response};
+use playcua_native::plugins::{MethodPlugin, PluginRegistry};
 use serde_json::{json, Value};
 use tokio::io::{AsyncWriteExt, BufReader};
 
@@ -103,7 +103,7 @@ fn build_registry() -> PluginRegistry {
 
 /// Step 3+4: drive a minimal JSON-RPC 2.0 stdio loop.
 ///
-/// This is a stripped-down version of `bare_cua_native::run_stdio` —
+/// This is a stripped-down version of `playcua_native::run_stdio` —
 /// in a real binary you'd wire the registry into the full dispatcher
 /// (which also routes to the platform adapters). For demonstrating the
 /// plugin path, a no-port loop is enough.

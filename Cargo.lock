@@ -322,34 +322,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bare-cua-native"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "base64",
- "blake3",
- "clap",
- "enigo",
- "fast_image_resize",
- "image",
- "libc",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
- "windows 0.62.2",
- "x11rb",
- "xcap",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2271,6 +2243,34 @@ name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
+
+[[package]]
+name = "playcua-native"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64",
+ "blake3",
+ "clap",
+ "enigo",
+ "fast_image_resize",
+ "image",
+ "libc",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "windows 0.62.2",
+ "x11rb",
+ "xcap",
+]
 
 [[package]]
 name = "png"

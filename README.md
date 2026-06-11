@@ -5,7 +5,12 @@
 > - Branch protection: 1 reviewer required, no force-push
 > - Authority: phenotype-org-governance/SUPERSEDED.md
 
-# bare-cua
+# PlayCua
+
+> **bare-cua is deprecated.** The standalone `bare-cua` repository is frozen at
+> the 2026-06-08 snapshot. Active Rust crate, CLI, MCP server, bindings, docs,
+> and releases now live in this PlayCua workspace. See
+> [DEPRECATED_BARE_CUA.md](DEPRECATED_BARE_CUA.md) for the Phase 1 merge record.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/KooshaPari/PlayCua/quality-gate.yml?branch=master&label=build)](https://github.com/KooshaPari/PlayCua/actions)
 [![Release](https://img.shields.io/github/v/release/KooshaPari/PlayCua?include_prereleases&sort=semver)](https://github.com/KooshaPari/PlayCua/releases)
@@ -26,9 +31,9 @@ No Docker. No VM. No network socket. Just a subprocess pipe.
 2. **SOLID** — each adapter does one thing; the dispatcher depends on abstractions not concretions; ports are the stable interfaces.
 3. **KISS / DRY** — `xcap` and `enigo` are thin wrappers; platform-specific paths add only what the cross-platform fallback cannot provide (WGC, PostMessage, EnumWindows).
 4. **Contract-first (OpenRPC 1.2.6)** — the full API is documented in `contracts/openrpc.json` before any code ships; clients are generated or validated against it.
-5. **Polyglot / polyrepo** — Python bindings in `python/`, C# bindings in `bindings/`; each language calls the same binary over stdio.
+5. **Polyglot / single workspace** — Rust crate, Python bindings, C# bindings, and protocol contracts are versioned from this PlayCua repository; each language calls the same binary over stdio.
 6. **Plugin system** — additional JSON-RPC methods can be registered via `MethodPlugin` without touching the core dispatcher.
-7. **Observability-first** — structured JSON logs to stderr; every adapter method is instrumented with `#[tracing::instrument]`; log level controlled by `BARE_CUA_LOG`.
+7. **Observability-first** — structured JSON logs to stderr; every adapter method is instrumented with `#[tracing::instrument]`; log level controlled by `PLAYCUA_LOG`.
 
 ---
 
@@ -45,7 +50,7 @@ No Docker. No VM. No network socket. Just a subprocess pipe.
                                 │  JSON-RPC 2.0
                                 ▼
   ┌─────────────────────────────────────────────────────────────────────┐
-  │  bare-cua-native  (Rust binary)                                     │
+  │  playcua-native  (Rust binary)                                     │
   │                                                                     │
   │  ┌──────────────────────────────────────────────────────────────┐   │
   │  │  main.rs  —  IPC loop (read → dispatch → write)             │   │
@@ -107,7 +112,7 @@ contracts/
   openrpc.json   # Full OpenRPC 1.2.6 spec (14 methods)
 
 python/
-  bare_cua/      # Python package
+  playcua/      # Python package
   tests/
     test_computer.py  # pytest suite with mock subprocess
 
@@ -125,7 +130,7 @@ native/tests/
 ```bash
 cd native
 cargo build --release
-# Binary: native/target/release/bare-cua-native[.exe]
+# Binary: native/target/release/playcua-native[.exe]
 ```
 
 ### 2. Install the Python package
@@ -139,10 +144,10 @@ pip install -e .
 
 ```python
 import asyncio
-from bare_cua import Computer
+from playcua import Computer
 
 async def main():
-    async with Computer("./native/target/release/bare-cua-native") as c:
+    async with Computer("./native/target/release/playcua-native") as c:
         # Take a screenshot
         png_bytes = await c.screenshot()
         with open("screen.png", "wb") as f:
@@ -167,12 +172,12 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from bare_cua import Computer, ComputerAgent
+from playcua import Computer, ComputerAgent
 
 async def main():
     async with Computer() as computer:
         agent = ComputerAgent(computer, model="claude-sonnet-4-5")
-        result = await agent.run("Open Notepad and type 'Hello from bare-cua'")
+        result = await agent.run("Open Notepad and type 'Hello from playcua'")
         print(result)
 
 asyncio.run(main())
@@ -183,7 +188,7 @@ asyncio.run(main())
 ```csharp
 using BareCua;
 
-await using var computer = await NativeComputer.StartAsync("bare-cua-native");
+await using var computer = await NativeComputer.StartAsync("playcua-native");
 
 byte[] png = await computer.ScreenshotAsync(windowTitle: "Diplomacy is Not an Option");
 await computer.ClickAsync(960, 540);
@@ -259,7 +264,7 @@ The full API spec is in [`contracts/openrpc.json`](contracts/openrpc.json).
 
 | Variable       | Default  | Description                                            |
 |----------------|----------|--------------------------------------------------------|
-| `BARE_CUA_LOG` | `info`   | Tracing level: `error`, `warn`, `info`, `debug`, `trace` |
+| `PLAYCUA_LOG` | `info`   | Tracing level: `error`, `warn`, `info`, `debug`, `trace` |
 
 ---
 
@@ -268,7 +273,7 @@ The full API spec is in [`contracts/openrpc.json`](contracts/openrpc.json).
 Register custom JSON-RPC methods without touching the core:
 
 ```rust
-use bare_cua_native::plugins::{MethodPlugin, PluginRegistry};
+use playcua_native::plugins::{MethodPlugin, PluginRegistry};
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -290,7 +295,7 @@ registry.register(Box::new(MyPlugin));
 
 ## Comparison with upstream CUA
 
-| Feature             | upstream CUA             | bare-cua                        |
+| Feature             | upstream CUA             | playcua                        |
 |---------------------|--------------------------|---------------------------------|
 | Computer server     | Python + macOS VM        | Rust binary (cross-platform)    |
 | Transport           | Unix socket / HTTP       | stdio NDJSON (no server needed) |

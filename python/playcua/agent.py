@@ -1,4 +1,4 @@
-"""bare_cua.agent - screenshot-action loop agent using the Anthropic SDK.
+"""playcua.agent - screenshot-action loop agent using the Anthropic SDK.
 
 Drives a Computer instance using Claude claude-sonnet-4-5 (or configurable model) to
 complete computer-use tasks autonomously. Uses a screenshot -> LLM -> action

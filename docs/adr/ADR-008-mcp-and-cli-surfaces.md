@@ -21,16 +21,16 @@ concretely more useful:
 
 ## Decision
 
-Add two new binaries to the `bare-cua` workspace:
+Add two new binaries to the `playcua` workspace:
 
-1. **`bare-cua-mcp`** — Model Context Protocol server. Wraps the existing
+1. **`playcua-mcp`** — Model Context Protocol server. Wraps the existing
    `Dispatcher` and registers one `#[tool]` per IPC method. Supports both
    stdio (default, for Claude/Cursor subprocess model) and streamable HTTP
    transports.
-2. **`bare-cua-cli`** — scriptable shell client. Spawns `bare-cua-native`
+2. **`playcua-cli`** — scriptable shell client. Spawns `playcua-native`
    as a subprocess and talks newline-delimited JSON-RPC 2.0 over its stdio.
 
-Both are kept **strictly additive** — the existing `bare-cua-native` stdio
+Both are kept **strictly additive** — the existing `playcua-native` stdio
 JSON-RPC daemon is unchanged, so all existing consumers keep working.
 
 ### Why rmcp 1.7 (and not hand-rolled MCP)
@@ -61,9 +61,9 @@ JSON-RPC daemon is unchanged, so all existing consumers keep working.
 
 - **AI agent interop for free** — Claude Desktop, Cursor, mcp-agent, etc.
   can drive PlayCua via MCP with zero glue code.
-- **Scriptability** — `bare-cua-cli` works inside shell pipelines, xargs,
+- **Scriptability** — `playcua-cli` works inside shell pipelines, xargs,
   parallel, GNU make, Nix builds, GitHub Actions.
-- **No regression** — `bare-cua-native` is unchanged; existing consumers
+- **No regression** — `playcua-native` is unchanged; existing consumers
   keep working.
 - **Single source of truth** — the 14 IPC methods are defined once in
   `Dispatcher`, exposed as JSON-RPC methods, MCP tools, and CLI
@@ -73,13 +73,13 @@ JSON-RPC daemon is unchanged, so all existing consumers keep working.
 
 ### Negative
 
-- **2 new binaries to maintain** — `bare-cua-mcp` and `bare-cua-cli`.
+- **2 new binaries to maintain** — `playcua-mcp` and `playcua-cli`.
   Each is small (~100-300 LOC), so the maintenance cost is low.
 - **MCP/rmcp API churn** — rmcp 1.x is stable but not 1.0. Future major
   versions may require touch-ups. Mitigated by keeping the rmcp
   surface in a single `mcp_server` module behind a feature flag.
 - **CLI subprocess per call** is wasteful for tight loops. Mitigated by
-  the `bare-cua-native` Unix-socket daemon mode (added in commit TBD;
+  the `playcua-native` Unix-socket daemon mode (added in commit TBD;
   see ADR-009).
 
 ## Alternatives considered
@@ -97,9 +97,9 @@ JSON-RPC daemon is unchanged, so all existing consumers keep working.
 
 ## Implementation status
 
-- ✅ `bare-cua-mcp` (commit 258843a): 14 `#[tool]`-registered methods,
+- ✅ `playcua-mcp` (commit 258843a): 14 `#[tool]`-registered methods,
   stdio + streamable HTTP transport, 2 unit tests.
-- ✅ `bare-cua-cli` (commit 3251dc8): 14 subcommands with clap 4, spawns
-  `bare-cua-native` as subprocess, newline-delimited JSON-RPC.
-- ⏳ Unix-socket daemon mode for `bare-cua-native` (next, ADR-009) —
+- ✅ `playcua-cli` (commit 3251dc8): 14 subcommands with clap 4, spawns
+  `playcua-native` as subprocess, newline-delimited JSON-RPC.
+- ⏳ Unix-socket daemon mode for `playcua-native` (next, ADR-009) —
   lets the CLI avoid fork-per-call.

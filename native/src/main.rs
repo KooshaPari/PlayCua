@@ -1,16 +1,16 @@
-//! bare-cua-native: stdio JSON-RPC 2.0 server (or Unix-socket daemon)
+//! playcua-native: stdio JSON-RPC 2.0 server (or Unix-socket daemon)
 //! for computer-use automation.
 //!
 //! Three mode flags (all optional, all mutually composable):
 //! - **stdio** (default): reads newline-delimited JSON-RPC 2.0 requests from
 //!   stdin, dispatches to platform-selected port adapters via the hexagonal
 //!   architecture, writes responses to stdout. All logging goes to stderr
-//!   (JSON format). This is the mode `bare-cua-cli` invokes per call.
+//!   (JSON format). This is the mode `playcua-cli` invokes per call.
 //! - **daemon** (`--socket <path>`): binds a Unix-domain socket at `path`,
 //!   accepts concurrent client connections, and serves the same JSON-RPC
 //!   2.0 protocol on each. Stale socket files are removed first; the
 //!   socket file is cleaned up on Ctrl-C or fatal error. This is the
-//!   mode `bare-cua-cli --daemon` will use for tight loops.
+//!   mode `playcua-cli --daemon` will use for tight loops.
 //! - **modality** (`--modality <kind>`): selects the runtime environment
 //!   (native | sandbox | nvms | wsl | container) per the NVMSCUA framework.
 //!   See `modality/` and ADR-006 for the full design. Falls back to `auto`
@@ -22,11 +22,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use bare_cua_native::app;
-use bare_cua_native::ipc;
-use bare_cua_native::ipc::{read_request, write_response};
-use bare_cua_native::modality::ModalityKind;
-use bare_cua_native::modality::{ModalityEnv, ModalityRegistry};
+use playcua_native::app;
+use playcua_native::ipc;
+use playcua_native::ipc::{read_request, write_response};
+use playcua_native::modality::ModalityKind;
+use playcua_native::modality::{ModalityEnv, ModalityRegistry};
 use tokio::io::{self, AsyncWriteExt, BufReader};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -41,19 +41,19 @@ mod socket;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing to stderr in JSON format.
-    // Level is controlled by BARE_CUA_LOG env var (default: info).
+    // Level is controlled by PLAYCUA_LOG env var (default: info).
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
-            EnvFilter::from_env("BARE_CUA_LOG")
-                .add_directive("bare_cua_native=info".parse().unwrap()),
+            EnvFilter::from_env("PLAYCUA_LOG")
+                .add_directive("playcua_native=info".parse().unwrap()),
         )
         .json()
         .init();
 
     info!(
         version = env!("CARGO_PKG_VERSION"),
-        "bare-cua-native starting"
+        "playcua-native starting"
     );
 
     // Parse --modality flag from argv (before the --socket switch).
@@ -99,10 +99,10 @@ async fn main() -> Result<()> {
 /// kind (or None) plus the remaining args (always with `args[0]` stripped).
 ///
 /// Recognized forms:
-/// - `bare-cua-native --modality nvms`               -> kind=Nvms, rest=[]
-/// - `bare-cua-native --modality nvms --socket p`    -> kind=Nvms, rest=[--socket, p]
-/// - `bare-cua-native`                               -> kind=None, rest=[]
-/// - `bare-cua-native --socket p`                    -> kind=None, rest=[--socket, p]
+/// - `playcua-native --modality nvms`               -> kind=Nvms, rest=[]
+/// - `playcua-native --modality nvms --socket p`    -> kind=Nvms, rest=[--socket, p]
+/// - `playcua-native`                               -> kind=None, rest=[]
+/// - `playcua-native --socket p`                    -> kind=None, rest=[--socket, p]
 fn parse_modality_arg(args: &[String]) -> (Option<ModalityKind>, &[String]) {
     let rest = args.get(1..).unwrap_or(&[]);
     if rest.len() >= 2 && rest[0] == "--modality" {
@@ -119,7 +119,7 @@ fn parse_modality_arg(args: &[String]) -> (Option<ModalityKind>, &[String]) {
     }
 }
 
-/// Stdio JSON-RPC 2.0 loop (the original `bare-cua-native` mode).
+/// Stdio JSON-RPC 2.0 loop (the original `playcua-native` mode).
 async fn run_stdio(app: Arc<app::App>) -> Result<()> {
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin);
@@ -154,6 +154,6 @@ async fn run_stdio(app: Arc<app::App>) -> Result<()> {
     }
 
     writer.flush().await?;
-    info!("bare-cua-native exiting");
+    info!("playcua-native exiting");
     Ok(())
 }

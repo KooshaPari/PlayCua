@@ -75,7 +75,7 @@ class Computer:
 
 class Sandbox:
     SANDBOX_EXE: str = r"C:\Windows\System32\WindowsSandbox.exe"
-    TEMP_DIR = Path(os.environ.get("TEMP", tempfile.gettempdir())) / "bare-cua-sandbox"
+    TEMP_DIR = Path(os.environ.get("TEMP", tempfile.gettempdir())) / "playcua-sandbox"
 
     def __init__(self, config, sandboxfile=None, native_port=8765, poll_interval_s=2.0):
         self._config = config; self._sandboxfile = sandboxfile

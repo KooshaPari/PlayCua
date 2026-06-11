@@ -23,7 +23,7 @@ pub struct Dispatcher {
     pub process: Arc<dyn ProcessPort>,
     pub analysis: Arc<dyn AnalysisPort>,
     /// The modality that was selected at App::build() time. Surfaced via
-    /// the `ping` method so MCP clients / bare-cua-cli can see which
+    /// the `ping` method so MCP clients / playcua-cli can see which
     /// environment they are talking to.
     pub selected_modality: SelectedModality,
 }

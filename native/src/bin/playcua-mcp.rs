@@ -1,4 +1,4 @@
-//! `bare-cua-mcp` — Model Context Protocol server for bare-cua.
+//! `playcua-mcp` — Model Context Protocol server for playcua.
 //!
 //! Exposes the 14 native IPC methods (`screenshot`, `input.*`, `windows.*`,
 //! `process.*`, `analysis.*`) as MCP tools. The protocol server is selected
@@ -6,11 +6,11 @@
 //! Cursor / mcp-agent subprocess usage).
 //!
 //! Examples:
-//!   bare-cua-mcp                                    # stdio transport
-//!   bare-cua-mcp --transport http --bind 127.0.0.1 --port 3000
+//!   playcua-mcp                                    # stdio transport
+//!   playcua-mcp --transport http --bind 127.0.0.1 --port 3000
 //!
 //! Build:
-//!   cargo build --bin bare-cua-mcp --features mcp-server --release
+//!   cargo build --bin playcua-mcp --features mcp-server --release
 
 #![cfg(feature = "mcp-server")]
 
@@ -24,13 +24,13 @@ use rmcp::ServiceExt;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use bare_cua_native::app::App;
-use bare_cua_native::mcp_server::BareCuaMcp;
-use bare_cua_native::modality::registry::{ModalityEnv, ModalityRegistry};
-use bare_cua_native::modality::ModalityKind;
+use playcua_native::app::App;
+use playcua_native::mcp_server::BareCuaMcp;
+use playcua_native::modality::registry::{ModalityEnv, ModalityRegistry};
+use playcua_native::modality::ModalityKind;
 
 #[derive(Parser, Debug)]
-#[command(name = "bare-cua-mcp", version, about = "bare-cua as an MCP server")]
+#[command(name = "playcua-mcp", version, about = "playcua as an MCP server")]
 struct Args {
     /// Transport: "stdio" (default, for Claude/Cursor subprocess) or "http"
     /// (streamable HTTP, for multi-client server deployments).
@@ -50,7 +50,7 @@ struct Args {
     path: String,
 
     /// Modality: native | sandbox | nvms | wsl | container. Overrides
-    /// BARE_CUA_MODALITY env var; falls back to auto.
+    /// PLAYCUA_MODALITY env var; falls back to auto.
     #[arg(long, value_parser = ["native", "sandbox", "nvms", "wsl", "container"])]
     modality: Option<String>,
 }
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
     info!(
         version = env!("CARGO_PKG_VERSION"),
         transport = %args.transport,
-        "bare-cua-mcp starting"
+        "playcua-mcp starting"
     );
 
     // Select modality from flag > env > auto.
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn serve_stdio(dispatcher: Arc<bare_cua_native::ipc::dispatcher::Dispatcher>) -> Result<()> {
+async fn serve_stdio(dispatcher: Arc<playcua_native::ipc::dispatcher::Dispatcher>) -> Result<()> {
     let server = BareCuaMcp::new(dispatcher)
         .serve(rmcp::transport::stdio())
         .await
@@ -104,7 +104,7 @@ async fn serve_stdio(dispatcher: Arc<bare_cua_native::ipc::dispatcher::Dispatche
 }
 
 async fn serve_http(
-    dispatcher: Arc<bare_cua_native::ipc::dispatcher::Dispatcher>,
+    dispatcher: Arc<playcua_native::ipc::dispatcher::Dispatcher>,
     args: &Args,
 ) -> Result<()> {
     let path = args.path.clone();
@@ -127,8 +127,8 @@ fn init_tracing() {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
-            EnvFilter::from_env("BARE_CUA_LOG")
-                .add_directive("bare_cua_native=info".parse().unwrap())
+            EnvFilter::from_env("PLAYCUA_LOG")
+                .add_directive("playcua_native=info".parse().unwrap())
                 .add_directive("rmcp=warn".parse().unwrap()),
         )
         .json()

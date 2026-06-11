@@ -134,9 +134,9 @@ without modification.
 ```dockerfile
 FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y wine dxvk vkd3d-proton xvfb
-COPY bare-cua-native /usr/local/bin/
+COPY playcua-native /usr/local/bin/
 EXPOSE 3000
-ENTRYPOINT ["bare-cua-mcp", "--transport", "http", "--bind", "0.0.0.0:3000"]
+ENTRYPOINT ["playcua-mcp", "--transport", "http", "--bind", "0.0.0.0:3000"]
 ```
 
 ## Open questions

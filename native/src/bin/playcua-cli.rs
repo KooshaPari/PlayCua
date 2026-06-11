@@ -1,13 +1,13 @@
-//! `bare-cua-cli` — scriptable shell client for the bare-cua-native daemon.
+//! `playcua-cli` — scriptable shell client for the playcua-native daemon.
 //!
 //! Subcommands wrap the 14 JSON-RPC methods into ergonomic shell verbs:
-//!   bare-cua-cli ping
-//!   bare-cua-cli screenshot > shot.png
-//!   bare-cua-cli click 100 200
-//!   bare-cua-cli type "hello world"
-//!   bare-cua-cli key Return
-//!   bare-cua-cli run --path /bin/echo --args hello --args world
-//!   bare-cua-cli ps kill 1234
+//!   playcua-cli ping
+//!   playcua-cli screenshot > shot.png
+//!   playcua-cli click 100 200
+//!   playcua-cli type "hello world"
+//!   playcua-cli key Return
+//!   playcua-cli run --path /bin/echo --args hello --args world
+//!   playcua-cli ps kill 1234
 //!
 //! Transport: spawns the daemon as a subprocess and talks newline-delimited
 //! JSON-RPC 2.0 over its stdio. No socket, no daemonization — just `pipe`.
@@ -27,18 +27,18 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 #[derive(Parser, Debug)]
-#[command(name = "bare-cua-cli", version, about = "Shell client for bare-cua-native")]
+#[command(name = "playcua-cli", version, about = "Shell client for playcua-native")]
 struct Cli {
-    /// Path to the bare-cua-native binary. Defaults to $BARE_CUA_NATIVE
-    /// or `bare-cua-native` on $PATH.
-    #[arg(long, env = "BARE_CUA_NATIVE", default_value = "bare-cua-native")]
+    /// Path to the playcua-native binary. Defaults to $PLAYCUA_NATIVE
+    /// or `playcua-native` on $PATH.
+    #[arg(long, env = "PLAYCUA_NATIVE", default_value = "playcua-native")]
     daemon: PathBuf,
 
-    /// Path to a Unix-socket daemon started with `bare-cua-native --socket <path>`.
+    /// Path to a Unix-socket daemon started with `playcua-native --socket <path>`.
     /// If set, the CLI connects to the running daemon instead of spawning
     /// a fresh subprocess per call. This is dramatically faster for tight
-    /// loops (for, xargs, parallel, etc.). Set via flag or $BARE_CUA_SOCKET.
-    #[arg(long, env = "BARE_CUA_SOCKET")]
+    /// loops (for, xargs, parallel, etc.). Set via flag or $PLAYCUA_SOCKET.
+    #[arg(long, env = "PLAYCUA_SOCKET")]
     socket: Option<PathBuf>,
 
     #[command(subcommand)]

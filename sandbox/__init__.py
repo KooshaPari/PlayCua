@@ -1,5 +1,5 @@
 """
-bare-cua sandbox layer — Windows Sandbox / Hyper-V / Docker isolation for DINO test automation.
+playcua sandbox layer — Windows Sandbox / Hyper-V / Docker isolation for DINO test automation.
 
 Provides:
   - SandboxConfig / MappedFolder dataclasses (config.py)
@@ -8,7 +8,7 @@ Provides:
   - PowerShell templates for BepInEx + SteamCMD setup (templates/)
 
 Quickstart:
-    from bare_cua.sandbox import Sandbox
+    from playcua.sandbox import Sandbox
 
     async with Sandbox.from_sandboxfile("Sandboxfile.yaml") as computer:
         result = await computer.run("dotnet test C:\\DINOForge\\src\\Tests")

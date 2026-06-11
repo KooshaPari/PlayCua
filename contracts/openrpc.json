@@ -1,7 +1,7 @@
 {
   "openrpc": "1.2.6",
   "info": {
-    "title": "bare-cua-native",
+    "title": "playcua-native",
     "version": "0.1.0",
     "description": "JSON-RPC 2.0 API for computer-use automation. All methods are invoked over stdio (NDJSON). Logs go to stderr; never to stdout.",
     "license": {

@@ -1,6 +1,6 @@
 //! `container` modality — generic OCI container (Docker, Podman, containerd).
 //!
-//! Probes for `docker` or `podman` (or `$BARE_CUA_CONTAINER_CLI` override).
+//! Probes for `docker` or `podman` (or `$PLAYCUA_CONTAINER_CLI` override).
 //! Either of these on $PATH is sufficient — the modality is the
 //! container-runtime-agnostic shim.
 
@@ -22,7 +22,7 @@ impl ContainerModality {
     fn probe(&self) -> Option<&'static str> {
         self.cached
             .get_or_init(|| {
-                if let Ok(override_cli) = std::env::var("BARE_CUA_CONTAINER_CLI") {
+                if let Ok(override_cli) = std::env::var("PLAYCUA_CONTAINER_CLI") {
                     return Some(match override_cli.as_str() {
                         "docker" => "docker",
                         "podman" => "podman",

@@ -1,6 +1,6 @@
 # Skill SDK — Authoring third-party JSON-RPC methods
 
-The **Skill SDK** is the recommended way to extend `bare-cua-native` with
+The **Skill SDK** is the recommended way to extend `playcua-native` with
 additional JSON-RPC methods without forking the binary or modifying the
 core dispatcher. A *skill* is a Rust type that implements
 [`MethodPlugin`](../../native/src/plugins/mod.rs) and registers itself
@@ -49,7 +49,7 @@ This is the canonical example, also used in the unit tests in
 ```bash
 mkdir acme-skills && cd acme-skills
 cargo init --lib --name acme_skills
-cargo add bare-cua-native --path ../native  # adjust path
+cargo add playcua-native --path ../native  # adjust path
 cargo add async-trait serde_json
 ```
 
@@ -58,7 +58,7 @@ cargo add async-trait serde_json
 ```rust
 // src/lib.rs
 use async_trait::async_trait;
-use bare_cua_native::plugins::MethodPlugin;
+use playcua_native::plugins::MethodPlugin;
 use serde_json::Value;
 
 pub struct EchoPlugin;
@@ -80,7 +80,7 @@ impl MethodPlugin for EchoPlugin {
 In your main binary:
 
 ```rust
-use bare_cua_native::plugins::PluginRegistry;
+use playcua_native::plugins::PluginRegistry;
 use acme_skills::EchoPlugin;
 
 let mut registry = PluginRegistry::new();
@@ -91,12 +91,12 @@ registry.register(Box::new(EchoPlugin));
 ### 4. Call from a client
 
 ```bash
-$ bare-cua-cli
+$ playcua-cli
 > {"jsonrpc":"2.0","id":1,"method":"acme.echo","params":{"msg":"hi"}}
 < {"jsonrpc":"2.0","id":1,"result":{"msg":"hi"}}
 ```
 
-Or via the MCP server (`bare-cua-mcp` will see `acme_echo` as a tool
+Or via the MCP server (`playcua-mcp` will see `acme_echo` as a tool
 whose name is derived from `acme.echo`).
 
 ## Receiving state in plugins
@@ -150,14 +150,14 @@ the plugin registered itself correctly.
 
 Three patterns, in order of integration depth:
 
-1. **Built into `bare-cua-native`** — add your plugin to
-   `native/src/bin/bare-cua-native.rs` after the built-in plugin
+1. **Built into `playcua-native`** — add your plugin to
+   `native/src/bin/playcua-native.rs` after the built-in plugin
    registrations. Easiest, but ties your release to the daemon.
 2. **Loaded from a workspace member** — if you have multiple skills
-   in the same cargo workspace as `bare-cua-native`, add a new binary
+   in the same cargo workspace as `playcua-native`, add a new binary
    that wires your plugins in and re-exports the daemon. Cleanest
    for the monorepo case.
-3. **Dynamically loaded from `$BARE_CUA_PLUGIN_DIR`** — *not yet
+3. **Dynamically loaded from `$PLAYCUA_PLUGIN_DIR`** — *not yet
    implemented* (tracked in ADR-006). Will require a stable ABI
    for the trait; expect a `cdylib` + `libloading` design.
 
@@ -184,5 +184,5 @@ sandbox boundaries will then constrain the plugin's reach.
 - Trait: [`native/src/plugins/mod.rs`](../../native/src/plugins/mod.rs)
 - Registry: `PluginRegistry::register` / `PluginRegistry::find`
 - Test examples: same file, `mod tests`
-- MCP bridge: `bare-cua-mcp` exposes registered plugin methods as MCP
+- MCP bridge: `playcua-mcp` exposes registered plugin methods as MCP
   tools automatically (name conversion: `acme.echo` → `acme_echo`).

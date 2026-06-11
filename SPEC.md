@@ -5,9 +5,9 @@
 > with a pluggable **modality** layer (native | sandbox | nvms | wsl | container), a
 > WINE-bridge for cross-OS interop, and three top-level surfaces:
 >
-> 1. **MCP server** — `bare-cua-mcp` exposes all CUA primitives to Claude Desktop,
+> 1. **MCP server** — `playcua-mcp` exposes all CUA primitives to Claude Desktop,
 >    Cursor, mcp-agent, and any MCP-compatible client.
-> 2. **Scriptable CLI** — `bare-cua-cli` provides a shell-friendly interface for
+> 2. **Scriptable CLI** — `playcua-cli` provides a shell-friendly interface for
 >    pipelines, CI, and `xargs`/`parallel` workflows.
 > 3. **Skill SDK** — Rust trait-based extensibility (`plugins/`), with the same trait
 >    surface accessible to Python (`bindings/python`) and C# (`bindings/csharp`).
@@ -30,7 +30,7 @@
 ┌────────────────────────────────────────────────────────────────────┐
 │  Surfaces                                                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                │
-│  │ bare-cua-mcp │  │ bare-cua-cli │  │  Skill SDK   │                │
+│  │ playcua-mcp │  │ playcua-cli │  │  Skill SDK   │                │
 │  │   (rmcp)     │  │   (clap)     │  │ (trait + py/ │                │
 │  │              │  │              │  │   csharp)    │                │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                │
@@ -66,15 +66,15 @@
 
 | Component | Path | Responsibility | Public API |
 |-----------|------|----------------|-----------|
-| **MCP server** | `native/src/bin/bare-cua-mcp.rs` | stdio + streamable HTTP MCP transport, registers 14 tools | 14 `#[tool]` methods |
-| **CLI** | `native/src/bin/bare-cua-cli.rs` | shell scriptable subcommand wrapper around JSON-RPC | `bare-cua-cli {screenshot,click,type,run,ps,windows,diff,hash}` |
-| **Daemon** | `native/src/bin/bare-cua-native.rs` | stdio JSON-RPC **and** Unix-socket daemon mode (configurable) | JSON-RPC 2.0 |
+| **MCP server** | `native/src/bin/playcua-mcp.rs` | stdio + streamable HTTP MCP transport, registers 14 tools | 14 `#[tool]` methods |
+| **CLI** | `native/src/bin/playcua-cli.rs` | shell scriptable subcommand wrapper around JSON-RPC | `playcua-cli {screenshot,click,type,run,ps,windows,diff,hash}` |
+| **Daemon** | `native/src/bin/playcua-native.rs` | stdio JSON-RPC **and** Unix-socket daemon mode (configurable) | JSON-RPC 2.0 |
 | **Dispatcher** | `native/src/ipc/dispatcher.rs` | central IPC router, plugin-augmented, OpenRPC-validated | `Dispatcher::dispatch(req) -> Response` |
 | **Modality** | `native/src/modality.rs` | trait + impls for native/sandbox/nvms/wsl/container | `Modality::capture(&self) -> RgbaImage` |
 | **Wine-bridge** | `native/src/wine_bridge.rs` | C ABI passthrough + DXvk translation | `WineBridge::launch_exe(path, args)` |
 | **Adapters** | `native/src/adapters/{linux,macos,windows}/` | platform-level capture/input (WGC, X11, CG, etc.) | internal |
 | **Plugin SDK** | `native/src/plugins/mod.rs` | trait-based extensibility (register, find, list, replace) | `Plugin` trait |
-| **Bindings** | `bindings/python`, `bindings/csharp` | cross-language clients (PyO3 + .NET) | `bare_cua.execute(action)` |
+| **Bindings** | `bindings/python`, `bindings/csharp` | cross-language clients (PyO3 + .NET) | `playcua.execute(action)` |
 | **Contracts** | `contracts/openrpc.json` | OpenRPC 1.2 spec, machine-readable | TLA+ invariants |
 
 ## Modality registry (proposed)
@@ -91,7 +91,7 @@ Selection: heuristic-driven default, explicit `--modality` CLI/MCP flag, `BARE_M
 
 ## WINE-bridge (research summary)
 
-**Goal:** Linux host running bare-cua should be able to drive a Windows binary
+**Goal:** Linux host running playcua should be able to drive a Windows binary
 (`notepad.exe`) without a Windows VM.
 
 **SOTA options identified (2026-06-08):**

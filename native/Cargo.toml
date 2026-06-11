@@ -1,25 +1,25 @@
 [package]
-name = "bare-cua-native"
+name = "playcua-native"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "bare-cua-native"
+name = "playcua-native"
 path = "src/main.rs"
 
 [[bin]]
-name = "bare-cua-mcp"
-path = "src/bin/bare-cua-mcp.rs"
+name = "playcua-mcp"
+path = "src/bin/playcua-mcp.rs"
 required-features = ["mcp-server"]
 
 [[bin]]
-name = "bare-cua-cli"
-path = "src/bin/bare-cua-cli.rs"
+name = "playcua-cli"
+path = "src/bin/playcua-cli.rs"
 
 [lib]
-name = "bare_cua_native"
+name = "playcua_native"
 path = "src/lib.rs"
 
 [dependencies]
@@ -48,7 +48,7 @@ tower.workspace = true
 # Default = stdio JSON-RPC 2.0 server (CLI / pipe-mode launchers).
 default = []
 # `mcp-server` = expose the 14 IPC methods as MCP tools (stdio or streamable-http).
-# Build with: cargo build --bin bare-cua-mcp --features mcp-server
+# Build with: cargo build --bin playcua-mcp --features mcp-server
 mcp-server = []
 
 [target.'cfg(windows)'.dependencies]
