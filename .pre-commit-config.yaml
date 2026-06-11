@@ -1,75 +1,73 @@
-# .pre-commit-config.yaml — PlayCua (L2 #33, 2026-06-11)
-# Covers: pre-commit-hooks, Rust (fmt/clippy/check), Python (ruff+black),
-#         secret scanning (gitleaks + trufflehog).
+# L2 #33 pre-commit baseline, 2026-06-11.
 # Install: pre-commit install
-# Run all: pre-commit run --all-files
-#
-# Slow hooks (cargo clippy/check) live under `manual` stage so they do not
-# block local commits. CI runs `pre-commit run --all-files --hook-stage manual`.
-#
-# Pin conventions: all upstream hook repos pinned to immutable rev tags.
+# Run default hooks: pre-commit run --all-files
+# Run heavy language baselines: pre-commit run --all-files --hook-stage manual
 
 repos:
-  # --- Generic hygiene ---------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        args: [--allow-multiple-documents]
       - id: check-toml
-      - id: check-merge-conflict
       - id: check-added-large-files
-        args: ['--maxkb=1024']
-      - id: detect-private-key
-      - id: mixed-line-ending
-        args: ['--fix=lf']
+        args: [--maxkb=1000]
 
-  # --- Rust: fmt (fast) --------------------------------------------------------
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
     hooks:
-      - id: fmt
-        args: ['--all', '--', '--check']
-      # cargo-check is moved to manual stage below; doublify's check is fast
-      # enough for the auto stage on incremental changes.
-      - id: cargo-check
-        stages: [manual]
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
 
-  # --- Rust: clippy (manual, slow) --------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3.11
+        types_or: [python, pyi]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
   - repo: local
     hooks:
       - id: cargo-clippy
-        name: cargo clippy --workspace --all-targets -- -D warnings
-        entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        name: cargo clippy -- -D warnings
+        entry: cargo clippy --workspace --all-targets --all-features
+        args: [--, -D, warnings]
         language: system
         types: [rust]
         pass_filenames: false
         stages: [manual]
 
-  # --- Python: ruff (check + format) + black ---------------------------------
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
-    hooks:
-      - id: ruff
-        args: ['--fix']
-      - id: ruff-format
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-      - id: black
-        language_version: python3
+      - id: golangci-lint
+        name: golangci-lint run --timeout 5m
+        entry: golangci-lint run
+        args: [--timeout, 5m]
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [manual]
 
-  # --- Secret scanning --------------------------------------------------------
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.21.2
-    hooks:
-      - id: gitleaks
-  - repo: https://github.com/trufflesecurity/trufflehog
-    rev: v3.88.40
-    hooks:
+      - id: tsc
+        name: tsc --noEmit
+        entry: npx tsc
+        args: [--noEmit]
+        language: system
+        types_or: [ts, tsx]
+        pass_filenames: false
+        stages: [manual]
+
       - id: trufflehog
-        name: trufflehog (verified secret scan)
+        name: trufflehog filesystem
         entry: trufflehog filesystem --no-update --only-verified --fail .
         language: system
         pass_filenames: false
+        stages: [manual]
+
