@@ -60,3 +60,25 @@ bare-cua-native.exe
 node_modules/
 coverage/
 # ===== End standard hygiene ignores =====
+
+# --- L2 #28 hygiene baseline (added 2026-06-11) ---
+/target
+**/*.rs.bk
+**/vendor/
+**/go-build/
+**/.next/
+**/.nuxt/
+**/.output/
+**/.cache/
+**/tsconfig.tsbuildinfo
+.AppleDouble
+.LSOverride
+*~
+*.bak
+**/.env.local
+**/.env.*.local
+.worktrees/
+.claude/worktrees/
+.serena/
+.codex/
+.cursor/
