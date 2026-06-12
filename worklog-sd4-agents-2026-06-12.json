@@ -1,0 +1,24 @@
+{
+  "status": "completed",
+  "task_id": "SD4",
+  "agent_id": "forge",
+  "files_changed": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "commit_sha": "12b4380",
+  "branch": "chore/SD4-2026-06-12",
+  "worktree": "PlayCua-wt-SD4-2026-06-12",
+  "started_at": "2026-06-12T12:00:00Z",
+  "completed_at": "2026-06-12T12:30:00Z",
+  "summary": "SD4 SOTA pattern landed for PlayCua: per-repo AGENTS.md (9-section V3 §120 layout) and README badges (CI on master, crates.io/playcua, License, Phenotype).",
+  "verification_result": {
+    "status": "pass",
+    "commands": [
+      "git -C PlayCua-wt-SD4-2026-06-12 status --short (only AGENTS.md + README.md modified)",
+      "git -C PlayCua-wt-SD4-2026-06-12 diff --stat HEAD~1 (2 files changed, +199/-15)",
+      "git -C PlayCua-wt-SD4-2026-06-12 log --oneline -1 (commit 12b4380: docs(agents): add AGENTS.md and README badges (SD4 SOTA pattern))"
+    ],
+    "notes": "AGENTS.md covers the playcua-native workspace, contracts/openrpc.json source-of-truth, native/{src,tests} test layout, cargo-deny, cargo-semver-checks, and 'do not touch' (Cargo.toml members, contracts/openrpc.json, generated dispatcher). README.md swap: replaced the quality-gate.yml CI badge with the canonical ci.yml badge and added a crates.io/playcua badge (existing License + Phenotype badges retained). Both committed on chore/SD4-2026-06-12 from origin/master. Worklog written to repo root, not committed (per task spec)."
+  }
+}
