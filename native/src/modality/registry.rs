@@ -96,7 +96,10 @@ impl ModalityRegistry {
 
     /// Find a modality by kind.
     pub fn find(&self, kind: ModalityKind) -> Option<&dyn Modality> {
-        self.modalities.iter().find(|m| m.kind() == kind).map(|b| b.as_ref())
+        self.modalities
+            .iter()
+            .find(|m| m.kind() == kind)
+            .map(|b| b.as_ref())
     }
 
     /// Run selection. Returns the selected modality's SelectedModality
@@ -199,24 +202,44 @@ mod tests {
     }
 
     fn env(flag: Option<ModalityKind>, var: Option<ModalityKind>, auto: bool) -> ModalityEnv {
-        ModalityEnv { flag, env: var, auto }
+        ModalityEnv {
+            flag,
+            env: var,
+            auto,
+        }
     }
 
     #[test]
     fn flag_wins_over_env() {
         let mut reg = ModalityRegistry::custom(vec![
-            Box::new(AlwaysAvail { kind: ModalityKind::Nvms, detail: "" }),
-            Box::new(AlwaysAvail { kind: ModalityKind::Native, detail: "" }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Nvms,
+                detail: "",
+            }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Native,
+                detail: "",
+            }),
         ]);
-        let s = reg.select(&env(Some(ModalityKind::Native), Some(ModalityKind::Nvms), false));
+        let s = reg.select(&env(
+            Some(ModalityKind::Native),
+            Some(ModalityKind::Nvms),
+            false,
+        ));
         assert_eq!(s.kind, ModalityKind::Native);
     }
 
     #[test]
     fn env_wins_over_auto() {
         let mut reg = ModalityRegistry::custom(vec![
-            Box::new(AlwaysAvail { kind: ModalityKind::Nvms, detail: "" }),
-            Box::new(AlwaysAvail { kind: ModalityKind::Native, detail: "" }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Nvms,
+                detail: "",
+            }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Native,
+                detail: "",
+            }),
         ]);
         let s = reg.select(&env(None, Some(ModalityKind::Native), true));
         assert_eq!(s.kind, ModalityKind::Native);
@@ -226,7 +249,10 @@ mod tests {
     fn auto_picks_first_available() {
         let mut reg = ModalityRegistry::custom(vec![
             Box::new(NeverAvail(ModalityKind::Nvms)),
-            Box::new(AlwaysAvail { kind: ModalityKind::Container, detail: "" }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Container,
+                detail: "",
+            }),
         ]);
         let s = reg.select(&env(None, None, true));
         assert_eq!(s.kind, ModalityKind::Container);
@@ -236,7 +262,10 @@ mod tests {
     fn auto_falls_back_to_native_when_nothing_available() {
         let mut reg = ModalityRegistry::custom(vec![
             Box::new(NeverAvail(ModalityKind::Nvms)),
-            Box::new(AlwaysAvail { kind: ModalityKind::Native, detail: "" }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Native,
+                detail: "",
+            }),
         ]);
         let s = reg.select(&env(None, None, true));
         assert_eq!(s.kind, ModalityKind::Native);
@@ -245,8 +274,14 @@ mod tests {
     #[test]
     fn no_flag_no_env_no_auto_picks_native() {
         let mut reg = ModalityRegistry::custom(vec![
-            Box::new(AlwaysAvail { kind: ModalityKind::Nvms, detail: "" }),
-            Box::new(AlwaysAvail { kind: ModalityKind::Native, detail: "" }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Nvms,
+                detail: "",
+            }),
+            Box::new(AlwaysAvail {
+                kind: ModalityKind::Native,
+                detail: "",
+            }),
         ]);
         let s = reg.select(&env(None, None, false));
         // Default fallback: native (always last, always wins when nothing else chosen).

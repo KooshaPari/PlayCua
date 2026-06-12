@@ -28,8 +28,8 @@ impl WindowPort for NSWorkspaceAdapter {
     #[instrument(name = "nsworkspace.list_windows", skip(self))]
     async fn list_windows(&self) -> Result<Vec<WindowInfo>, WindowError> {
         tokio::task::spawn_blocking(|| -> Result<Vec<WindowInfo>, WindowError> {
-            let windows = xcap::Window::all()
-                .map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
+            let windows =
+                xcap::Window::all().map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
             Ok(windows
                 .into_iter()
                 .map(|w| {
