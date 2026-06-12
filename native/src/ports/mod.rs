@@ -11,6 +11,36 @@ use crate::domain::{
     window::{WindowError, WindowFilter, WindowInfo},
 };
 use async_trait::async_trait;
+use std::collections::HashMap;
+use tokio::io::{AsyncRead, AsyncWrite};
+
+pub type BoxAsyncReader = Box<dyn AsyncRead + Send + Unpin>;
+pub type BoxAsyncWriter = Box<dyn AsyncWrite + Send + Unpin>;
+
+#[derive(Debug, Clone, Default)]
+pub struct SpawnSpec {
+    pub program: String,
+    pub args: Vec<String>,
+    pub env: HashMap<String, String>,
+    pub cwd: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpawnError {
+    #[error("spawn failed: {0}")]
+    SpawnFailed(String),
+    #[error("kill failed: {0}")]
+    KillFailed(String),
+    #[error("process not found: id={0}")]
+    NotFound(u64),
+}
+
+pub struct ChildHandle {
+    pub id: u64,
+    pub stdin: BoxAsyncWriter,
+    pub stdout: BoxAsyncReader,
+    pub stderr: BoxAsyncReader,
+}
 
 /// Port for screen capture operations.
 #[async_trait]
@@ -41,6 +71,15 @@ pub trait WindowPort: Send + Sync {
     async fn find_window(&self, filter: WindowFilter) -> Result<Option<WindowInfo>, WindowError>;
     /// Bring a window to the foreground by its platform handle.
     async fn focus_window(&self, hwnd: usize) -> Result<(), WindowError>;
+}
+
+/// Port for async child-process spawning with piped stdio.
+#[async_trait]
+pub trait ProcessSpawner: Send + Sync {
+    /// Spawn a new process and return its handle plus piped stdio streams.
+    async fn spawn(&self, spec: SpawnSpec) -> Result<ChildHandle, SpawnError>;
+    /// Terminate a process by its runtime identifier.
+    async fn kill(&self, id: u64) -> Result<(), SpawnError>;
 }
 
 /// Port for process lifecycle management.
