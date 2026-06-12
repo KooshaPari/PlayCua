@@ -6,5 +6,8 @@
 pub mod analysis;
 pub mod capture;
 pub mod input;
+pub mod input_capture;
 pub mod process;
+pub mod render;
+pub mod sandbox;
 pub mod window;

@@ -62,3 +62,9 @@ pub trait AnalysisPort: Send + Sync {
     /// Compute a BLAKE3 hash of the normalized pixel data of a PNG image.
     async fn hash(&self, data: &[u8]) -> Result<HashResult, AnalysisError>;
 }
+
+// Hex-refactor ports (L4 #61)
+
+pub mod input;
+pub mod renderer;
+pub mod sandbox;
