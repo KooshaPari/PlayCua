@@ -72,6 +72,7 @@ windows = { version = "0.62", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+xcb = "0.10"
 x11rb = { version = "0.13", features = ["all-extensions"] }
 
 [profile.release]

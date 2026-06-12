@@ -12,6 +12,23 @@ use crate::domain::{
 };
 use async_trait::async_trait;
 
+/// Raw frame data returned by a window capture backend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedFrame {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+/// Minimal metadata for a capturable native window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowDescriptor {
+    pub id: u64,
+    pub title: String,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Port for screen capture operations.
 #[async_trait]
 pub trait CapturePort: Send + Sync {
@@ -19,6 +36,12 @@ pub trait CapturePort: Send + Sync {
     async fn capture_display(&self, monitor: u32) -> Result<Frame, CaptureError>;
     /// Capture a single window, optionally filtered by title substring.
     async fn capture_window(&self, title: Option<&str>) -> Result<Frame, CaptureError>;
+}
+
+/// Port for enumerating and capturing native windows as raw pixels.
+pub trait WindowCapturer: Send + Sync {
+    fn capture(&self, window_id: u64) -> Result<CapturedFrame, CaptureError>;
+    fn list_windows(&self) -> Result<Vec<WindowDescriptor>, CaptureError>;
 }
 
 /// Port for keyboard and mouse input injection.
