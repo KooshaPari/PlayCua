@@ -7,6 +7,13 @@
 
 # PlayCua
 
+[![CI](https://github.com/KooshaPari/PlayCua/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/KooshaPari/PlayCua/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/playcua.svg)](https://crates.io/crates/playcua)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![Phenotype](https://img.shields.io/badge/Phenotype-org-blueviolet)](https://github.com/KooshaPari)
+
+## Badges
+
 > **bare-cua is deprecated.** The standalone `bare-cua` repository is frozen at
 > the 2026-06-08 snapshot. Active Rust crate, CLI, MCP server, bindings, docs,
 > and releases now live in this PlayCua workspace. See
