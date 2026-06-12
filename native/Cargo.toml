@@ -22,6 +22,17 @@ path = "src/bin/playcua-cli.rs"
 name = "playcua_native"
 path = "src/lib.rs"
 
+# L3 #41 — register the type-strictness integration test that lives at
+# the workspace root (`PlayCua/tests/type_strictness_test.rs`). The
+# spec'd location is the workspace root, but cargo only auto-discovers
+# integration tests under `<package>/tests/*.rs`; without this explicit
+# `[[test]]` entry, `cargo test --workspace` would not see the file.
+# Keeping the canonical source at the spec'd path means there is one
+# file to maintain; this entry just wires cargo to find it.
+[[test]]
+name = "type_strictness_test"
+path = "../tests/type_strictness_test.rs"
+
 [dependencies]
 tokio.workspace = true
 serde.workspace = true

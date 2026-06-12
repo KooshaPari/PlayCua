@@ -43,3 +43,81 @@ tower = "0.5"
 # Daemon socket + client deps
 # (Unix socket datagram / stream support, no extra dep needed for tokio on Unix)
 
+# ---------------------------------------------------------------------------
+# L3 #41 — coverage profile (cargo llvm-cov) + workspace metadata
+# ---------------------------------------------------------------------------
+# `cargo llvm-cov` uses a dedicated `coverage` profile so the instrumented
+# build never touches the regular dev/release pipeline. The settings below
+# match the taiki-e/cargo-llvm-cov upstream recommendation (debug = true,
+# debug-info line-tables only, no LTO, single codegen unit, no overflow
+# checks, instrument-coverage is added via `.cargo/config.toml` rustflags).
+#
+# See: https://github.com/taiki-e/cargo-llvm-cov#configuration
+#      https://doc.rust-lang.org/cargo/reference/profiles.html
+# ---------------------------------------------------------------------------
+[profile.coverage]
+# `inherits = "dev"` is required for non-default profiles. We inherit
+# from `dev` (not `release`) because cargo-llvm-cov's standard
+# recommendation is to instrument a debug build — debug line-tables
+# are required for the per-line coverage report, and the extra
+# codegen cost of an instrumented release build isn't worth the
+# slight runtime speedup (the test suite is the workload, not the
+# library).
+inherits = "dev"
+# Keep debug info for source-line attribution in the coverage report.
+debug = true
+# Override `dev`'s debug-assertions=true — coverage instrumentation
+# makes the runtime check paths extremely noisy, and the deny
+# lints (e.g. `clippy::assertions_on_constants`) catch the cases
+# we actually care about.
+debug-assertions = false
+incremental = false
+opt-level = 0
+overflow-checks = false
+# `codegen-units = 1` is what `cargo-llvm-cov` recommends so the
+# coverage map is built in one pass and `--no-report`-style merging
+# works deterministically.
+codegen-units = 1
+# No LTO on the coverage profile — LTO breaks the source-line
+# attribution that `cargo-llvm-cov` writes into the HTML report.
+lto = false
+# Don't strip symbols — `llvm-cov` needs the full symbol table to
+# produce a meaningful report.
+strip = false
+panic = "unwind"
+
+# ---------------------------------------------------------------------------
+# `cargo-llvm-cov` runtime config (the `coverage` sub-table in
+# `workspace.metadata` is read by the `cargo llvm-cov` CLI; the `coverage`
+# profile above is what tells Cargo how to compile instrumented code).
+# ---------------------------------------------------------------------------
+[workspace.metadata.coverage]
+# Coverage reports are written to this directory (relative to the workspace
+# root). `cargo llvm-cov --html` populates `<output-dir>/html/index.html`.
+output-dir = "coverage"
+
+# `cargo-llvm-cov` defaults to `cargo nextest` if installed. Pin the
+# standard `cargo test` runner for portability across CI / dev machines
+# that may not have nextest pre-installed.
+runner = "cargo"
+
+# We want to see coverage for the playcua-native library crate and any
+# new integration tests under `native/tests/`. Excluded targets are
+# skipped during instrumentation. Binaries (`playcua-native`, `playcua-cli`)
+# are reachable through the lib, so they're not in `targets` explicitly.
+targets = ["playcua-native"]
+
+# Source roots to instrument — covers the lib crate and any sibling
+# targets the lib depends on.
+source-roots = ["native/src"]
+
+# Some lints live in `cargo-llvm-cov` itself: the engine's `--ignore-*`
+# filters would let us exclude the (large) `xcap`/`enigo`/`windows-rs`
+# C-dep crates, but `source-roots` already scopes us to our own code.
+ignore = []
+
+# Jobserver slots (parallel compilation). `-j 1` keeps the CI runner
+# under disk pressure when other L3 agents are building in parallel
+# (cf. FLEET_DAG_v3 §90.4). 0 = auto (= ncpu).
+jobs = 1
+

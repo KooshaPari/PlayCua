@@ -1,0 +1,72 @@
+# PlayCua `tarpaulin.toml` — L3 #41 backup coverage configuration
+#
+# Why a second tool: `cargo-llvm-cov` (the primary) requires
+# nightly-only `llvm-cov` plumbing on some hosts and an `llvm-tools`
+# component. `cargo-tarpaulin` is a self-contained alternative that
+# only needs stable rustc + a working `cargo`, so it's the right
+# fallback for CI runners that don't (or can't) install the LLVM
+# toolchain. Both tools produce a Cobertura-style XML and an HTML
+# report; switching between them is a one-line change in the workflow.
+#
+# What this file configures:
+#   * fail-under = 80  — tarpaulin exits non-zero when line coverage
+#                        drops below the L3 #41 floor, mirroring the
+#                        `coverage.sh` check.
+#   * workspace       — instrument the whole workspace, not just
+#                        `playcua-native` (the only member today, but
+#                        future-proof).
+#   * timeout 600s    — 10-minute wall clock, matching the justfile /
+#                        Taskfile `long_timeout` so a hung build does
+#                        not stall CI.
+#   * exclude_files   — keep test fixtures and generated code out of
+#                        the report; their coverage is structurally
+#                        unmeasurable.
+#
+# Reference: https://github.com/xd009642/tarpaulin#configuration
+
+# The L3 #41 floor. Mirrors `PLAYCUA_COV_MIN=80.0` in coverage.sh.
+# Both tools will refuse to pass CI when line coverage drops below
+# this number — the floor is duplicated, not derived, so a config
+# edit in one file does not silently lift the other.
+fail-under = 80
+
+# Instrument every workspace member, not just the one tarpaulin
+# happens to find. Required so future sibling crates (e.g. a
+# `playcua-protocol` extraction) get coverage without re-config.
+workspace = true
+
+# Hard wall-clock cap. Matches the `long_timeout = "10m"` in
+# `justfile` so a single recipe `just test timeout=10m` and a
+# `cargo tarpaulin` invocation are bounded by the same budget.
+timeout = "600s"
+
+# Where the report goes. The `.gitignore` already excludes
+# `coverage/` and `tarpaulin-report.html` at the root.
+report-type = ["html", "xml"]
+output-dir = "coverage/tarpaulin"
+
+# Treat warnings as errors so a misconfigured tarpaulin.toml does
+# not silently fall through to "no report" (which would not trip
+# the `fail-under` check).
+run-types = ["Tests", "Doctests", "Examples"]
+
+# Exclude paths whose coverage we cannot meaningfully measure:
+#   * `/target/` and `/bindings/` are generated at build time
+#   * `/tests/fixtures/` would skew the percentage with deliberately
+#     unused test inputs
+#   * the future `/contracts/` and `/sandbox/` adapter shims are
+#     not yet wired into a runnable test target
+# Tarpaulin supports globs; the leading `/` anchors to the
+# workspace root, which is what we want.
+exclude-files = [
+    "/target/**",
+    "/bindings/**",
+    "/tests/fixtures/**",
+    "/contracts/**",
+    "/sandbox/**",
+]
+
+# The 4-space indentation below matches cargo's TOML convention;
+# tarpaulin's parser is whitespace-insensitive, but consistency
+# helps `cargo fmt --check` if a future contributor extends this
+# file with cargo-recognised tables.
