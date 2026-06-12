@@ -186,7 +186,7 @@ asyncio.run(main())
 ### 5. Use from C# (DINOForge integration)
 
 ```csharp
-using BareCua;
+using PlayCua;
 
 await using var computer = await NativeComputer.StartAsync("playcua-native");
 

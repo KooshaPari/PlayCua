@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace BareCua;
+namespace PlayCua;
 
 /// <summary>
 /// Thin C# client for the playcua-native binary via stdio JSON-RPC 2.0.

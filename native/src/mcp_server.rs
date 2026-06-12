@@ -151,14 +151,14 @@ pub struct HashParams {
 /// Cheap to clone (the inner `Dispatcher` is wrapped in `Arc`, the
 /// `ToolRouter` is a `#[tool_router]`-generated field).
 #[derive(Clone)]
-pub struct BareCuaMcp {
+pub struct PlayCuaMcp {
     dispatcher: Arc<Dispatcher>,
     // Read by the `#[tool_handler]` macro, which the dead-code pass can't see.
     #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
-impl BareCuaMcp {
+impl PlayCuaMcp {
     /// Build from a fresh `App::build().dispatcher`. See `crate::app::App`.
     pub fn new(dispatcher: Arc<Dispatcher>) -> Self {
         Self {
@@ -202,12 +202,12 @@ impl BareCuaMcp {
 
 // ---------------------------------------------------------------------------
 // Tool registrations (14 total). The `#[tool_router]` macro generates
-// `BareCuaMcp::tool_router()`; the `#[tool_handler]` macro generates the
+// `PlayCuaMcp::tool_router()`; the `#[tool_handler]` macro generates the
 // `ServerHandler` impl that delegates to it.
 // ---------------------------------------------------------------------------
 
 #[tool_router]
-impl BareCuaMcp {
+impl PlayCuaMcp {
     /// Capture the current screen (or named window) as base64-encoded PNG.
     #[tool(description = "Capture the screen (or a named window) as base64-encoded PNG bytes.")]
     async fn screenshot(
@@ -382,7 +382,7 @@ impl BareCuaMcp {
 }
 
 #[tool_handler]
-impl ServerHandler for BareCuaMcp {
+impl ServerHandler for PlayCuaMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(
