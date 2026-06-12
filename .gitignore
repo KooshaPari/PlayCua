@@ -50,8 +50,8 @@ tmp/
 temp/
 
 # Release binaries (add specific ones to track if needed)
-bare-cua-native
-bare-cua-native.exe
+playcua-native
+playcua-native.exe
 
 # ===== Standard auto-generated hygiene ignores (do not edit manually) =====
 .env
