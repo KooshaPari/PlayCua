@@ -22,4 +22,10 @@ See CLAUDE.md for language stack, build commands, and testing requirements.
 
 ---
 
+## Active DAG
+- **V3 DAG:** `FLEET_DAG_v3.db` (Phenotype org task graph)
+- **Current focus:** L5 #88 — Focus-repo README + AGENTS.md standardization
+
+---
+
 **Parent contract:** Extends Phenotype-org governance. See `CLAUDE.md` and parent `AGENTS.md` for complete operating procedures.
