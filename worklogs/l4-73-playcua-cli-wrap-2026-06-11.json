@@ -1,0 +1,34 @@
+{
+  "task": "V3 DAG L4 #73",
+  "title": "Wrap hand-rolled CLI (PlayCua)",
+  "date": "2026-06-11",
+  "repo": "PlayCua",
+  "branch": "chore/l4-73-playcua-cli-wrap-2026-06-11",
+  "status": "complete",
+  "files_changed": [
+    "crates/cli-wrapper/Cargo.toml",
+    "crates/cli-wrapper/src/lib.rs"
+  ],
+  "changes": [
+    "Created standalone crates/cli-wrapper crate with path dependency to pheno-cli-base (../../pheno-cli-base).",
+    "Implemented PlayCuaCli struct deriving clap::Parser with subcommands: run, test, build.",
+    "Implemented CliRunnable for PlayCuaCli using the pheno-cli-base pattern.",
+    "The run subcommand prints a placeholder message.",
+    "Added stub pheno-cli-base crate (Cargo.toml + lib.rs with CliRunnable trait) since it existed but had no source code."
+  ],
+  "test_results": [
+    {
+      "command": "cargo test --manifest-path crates/cli-wrapper/Cargo.toml",
+      "status": "passed",
+      "notes": [
+        "cli_parses_subcommands: verified all three subcommands (run, test, build) parse correctly.",
+        "run_subcommand_prints_placeholder: verified CliRunnable::run succeeds for Run command."
+      ]
+    }
+  ],
+  "notes": [
+    "pheno-cli-base existed as a repo stub with no Cargo.toml or src; created minimal stub crate with CliRunnable trait.",
+    "cli-wrapper is a standalone crate (not part of the PlayCua workspace) per task specification.",
+    "Commit: feat(playcua-cli): wrap hand-rolled CLI with pheno-cli-base (L4 #73)."
+  ]
+}
