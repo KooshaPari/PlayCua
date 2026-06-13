@@ -1,3 +1,6 @@
+# Phenotype-org standard cliff.toml v2 (2026-06-11) - adds ⚠️ **BREAKING** suffix
+# Changes from v1: adds ⚠️ **BREAKING** suffix for commits with `!` prefix
+
 # Source: https://github.com/KooshaPari/phenotype-tooling/blob/main/templates/cliff.toml
 # git-cliff config (Phenotype-org standard)
 # https://git-cliff.org/docs/configuration
@@ -20,7 +23,7 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | upper_first }}
     {% for commit in commits %}
-        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{{ commit.message | upper_first }}\
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{{ commit.message | upper_first }}{% if commit.breaking %} ⚠️ **BREAKING**{% endif %}\
     {% endfor %}
 {% endfor %}\n
 """
