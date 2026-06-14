@@ -7,6 +7,8 @@
 
 # PlayCua
 
+> **Architecture:** See the [Architecture](#architecture) section below for system design.
+
 > **bare-cua is deprecated.** The standalone `bare-cua` repository is frozen at
 > the 2026-06-08 snapshot. Active Rust crate, CLI, MCP server, bindings, docs,
 > and releases now live in this PlayCua workspace. See
