@@ -54,9 +54,8 @@ pub async fn run(app: Arc<App>, socket_path: PathBuf) -> Result<()> {
     // but a user-supplied path may need mkdir -p).
     if let Some(parent) = socket_path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("creating parent dir {}", parent.display())
-            })?;
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating parent dir {}", parent.display()))?;
         }
     }
 
@@ -67,7 +66,9 @@ pub async fn run(app: Arc<App>, socket_path: PathBuf) -> Result<()> {
 
     // Clean up the socket file on graceful shutdown. The DeferCleanup
     // destructor also removes it; this handles the Ctrl-C case.
-    let _cleanup = DeferCleanup { path: socket_path.clone() };
+    let _cleanup = DeferCleanup {
+        path: socket_path.clone(),
+    };
 
     loop {
         tokio::select! {
@@ -163,7 +164,11 @@ mod tests {
         std::fs::write(&path, b"").unwrap();
         assert!(path.exists());
         drop(DeferCleanup { path: path.clone() });
-        assert!(!path.exists(), "DeferCleanup should have removed {}", path.display());
+        assert!(
+            !path.exists(),
+            "DeferCleanup should have removed {}",
+            path.display()
+        );
     }
 
     fn tempdir_in_target() -> PathBuf {

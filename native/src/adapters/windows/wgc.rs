@@ -6,11 +6,10 @@
 //! The WGC implementation is gated on target_os = "windows" throughout.
 //! The non-Windows stubs exist solely to satisfy the compiler when cross-compiling.
 
-use crate::adapters::xcap::{encode_png_frame, XcapCapture};
+use crate::adapters::xcap::{encode_rgba_png_frame, XcapCapture};
 use crate::domain::capture::{CaptureError, Frame};
 use crate::ports::CapturePort;
 use async_trait::async_trait;
-use image::DynamicImage;
 use tracing::{instrument, warn};
 
 pub struct WgcCapture {
@@ -75,10 +74,9 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
             Graphics::{
                 Direct3D::D3D_DRIVER_TYPE_HARDWARE,
                 Direct3D11::{
-                    D3D11CreateDevice, ID3D11Device, ID3D11Texture2D,
-                    D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                    D3D11_MAP_READ, D3D11_MAPPED_SUBRESOURCE, D3D11_SDK_VERSION,
-                    D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
+                    D3D11CreateDevice, ID3D11Device, ID3D11Texture2D, D3D11_CPU_ACCESS_READ,
+                    D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_MAPPED_SUBRESOURCE, D3D11_MAP_READ,
+                    D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
                 },
                 Dxgi::{Common::DXGI_SAMPLE_DESC, IDXGIDevice},
             },
@@ -108,20 +106,19 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
         )
         .map_err(|e| CaptureError::CaptureFailed(format!("D3D11CreateDevice: {e}")))?;
     }
-    let d3d_device = d3d_device
-        .ok_or_else(|| CaptureError::CaptureFailed("D3D11CreateDevice returned None".to_string()))?;
+    let d3d_device = d3d_device.ok_or_else(|| {
+        CaptureError::CaptureFailed("D3D11CreateDevice returned None".to_string())
+    })?;
 
     // In windows-rs 0.58, cast() requires the Interface trait in scope.
-    use windows::{
-        core::Interface,
-        Graphics::DirectX::Direct3D11::IDirect3DDevice,
-    };
+    use windows::{core::Interface, Graphics::DirectX::Direct3D11::IDirect3DDevice};
     let dxgi_device: IDXGIDevice = d3d_device
         .cast()
         .map_err(|e| CaptureError::CaptureFailed(format!("cast to IDXGIDevice: {e}")))?;
     let winrt_inspectable = unsafe {
-        CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device)
-            .map_err(|e| CaptureError::CaptureFailed(format!("CreateDirect3D11DeviceFromDXGIDevice: {e}")))?
+        CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device).map_err(|e| {
+            CaptureError::CaptureFailed(format!("CreateDirect3D11DeviceFromDXGIDevice: {e}"))
+        })?
     };
     // Cast IInspectable → IDirect3DDevice (required by CreateFreeThreaded in 0.58).
     let winrt_device: IDirect3DDevice = winrt_inspectable
@@ -130,10 +127,13 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
 
     // In windows-rs 0.58, HWND-based capture uses IGraphicsCaptureItemInterop::CreateForWindow.
     use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
-    let interop: IGraphicsCaptureItemInterop = windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()
-        .map_err(|e| CaptureError::CaptureFailed(format!("IGraphicsCaptureItemInterop factory: {e}")))?;
+    let interop: IGraphicsCaptureItemInterop =
+        windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>().map_err(
+            |e| CaptureError::CaptureFailed(format!("IGraphicsCaptureItemInterop factory: {e}")),
+        )?;
     let capture_item: GraphicsCaptureItem = unsafe {
-        interop.CreateForWindow(hwnd)
+        interop
+            .CreateForWindow(hwnd)
             .map_err(|e| CaptureError::CaptureFailed(format!("CreateForWindow: {e}")))?
     };
 
@@ -182,7 +182,9 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
 
     let pixels = tokio::task::spawn_blocking(move || {
         rx.recv_timeout(std::time::Duration::from_secs(5))
-            .map_err(|_| CaptureError::CaptureFailed("WGC timed out waiting for frame".to_string()))?
+            .map_err(|_| {
+                CaptureError::CaptureFailed("WGC timed out waiting for frame".to_string())
+            })?
     })
     .await
     .map_err(|e| CaptureError::CaptureFailed(format!("spawn_blocking join: {e}")))??;
@@ -195,9 +197,7 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
     for chunk in rgba.chunks_exact_mut(4) {
         chunk.swap(0, 2);
     }
-    let img_buf = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(width, height, rgba)
-        .ok_or_else(|| CaptureError::EncodeFailed("ImageBuffer from WGC pixels failed".to_string()))?;
-    encode_png_frame(&DynamicImage::ImageRgba8(img_buf))
+    encode_rgba_png_frame(width, height, &rgba)
 }
 
 /// Read pixel data from a WGC frame via a D3D11 staging texture.
@@ -212,9 +212,8 @@ fn extract_frame_pixels(
         Win32::{
             Graphics::{
                 Direct3D11::{
-                    ID3D11Device, ID3D11Texture2D,
-                    D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_MAPPED_SUBRESOURCE,
-                    D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
+                    ID3D11Device, ID3D11Texture2D, D3D11_CPU_ACCESS_READ, D3D11_MAPPED_SUBRESOURCE,
+                    D3D11_MAP_READ, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
                 },
                 Dxgi::Common::DXGI_SAMPLE_DESC,
             },
@@ -225,9 +224,9 @@ fn extract_frame_pixels(
     let surface = frame
         .Surface()
         .map_err(|e| CaptureError::CaptureFailed(format!("frame.Surface: {e}")))?;
-    let access: IDirect3DDxgiInterfaceAccess = surface
-        .cast()
-        .map_err(|e| CaptureError::CaptureFailed(format!("cast IDirect3DDxgiInterfaceAccess: {e}")))?;
+    let access: IDirect3DDxgiInterfaceAccess = surface.cast().map_err(|e| {
+        CaptureError::CaptureFailed(format!("cast IDirect3DDxgiInterfaceAccess: {e}"))
+    })?;
     let src_tex: ID3D11Texture2D = unsafe {
         access
             .GetInterface()
@@ -258,7 +257,10 @@ fn extract_frame_pixels(
         MipLevels: 1,
         ArraySize: 1,
         Format: src_desc.Format,
-        SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
         Usage: D3D11_USAGE_STAGING,
         BindFlags: 0u32,
         CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,

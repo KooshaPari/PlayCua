@@ -52,9 +52,22 @@ pub enum ScrollDirection {
 /// A complete mouse event (move, click, or scroll).
 #[derive(Debug, Clone)]
 pub enum MouseEvent {
-    Move { x: i32, y: i32 },
-    Click { x: i32, y: i32, button: MouseButton, action: MouseAction },
-    Scroll { x: i32, y: i32, direction: ScrollDirection, amount: i32 },
+    Move {
+        x: i32,
+        y: i32,
+    },
+    Click {
+        x: i32,
+        y: i32,
+        button: MouseButton,
+        action: MouseAction,
+    },
+    Scroll {
+        x: i32,
+        y: i32,
+        direction: ScrollDirection,
+        amount: i32,
+    },
 }
 
 /// Errors that can arise during input injection.

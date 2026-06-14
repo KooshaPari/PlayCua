@@ -24,6 +24,40 @@
 | G4 | SOTA quality, not SOTA LOC | Lean implementations, vendored only where forks add real value (e.g. WSL, gVisor). |
 | G5 | OpenRPC contract | Every IPC method is in `contracts/openrpc.json`; generated client libraries (Rust/Python/C#) cannot drift. |
 
+## Stack
+
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Core Framework | Rust 2021 edition | Tokio + async runtime |
+| IPC Protocol | JSON-RPC 2.0 | OpenRPC-validated, 14 methods |
+| Platform Capture | X11 / WGC / CG | Linux, Windows, macOS native adapters |
+| Modality Layer | Native / Sandbox / NVMS / WSL / Container | Heuristic-driven with `--modality` flag |
+| CLI Framework | clap | Structured subcommands |
+| MCP Transport | rmcp | stdio + streamable HTTP |
+| Wine Bridge | WINE + DXvk | C ABI passthrough for cross-OS execution |
+| Language Bindings | PyO3 + .NET | Python and C# SDK wrappers |
+| Testing | cargo test | Unit + integration tests across all modalities |
+
+## Key Commands
+
+| Command | Description |
+|---------|-------------|
+| `cargo build --workspace` | Build all Rust binaries (mcp, cli, daemon) |
+| `cargo test --workspace` | Run all Rust unit tests |
+| `cargo clippy --workspace -- -D warnings` | Lint all Rust packages |
+| `just lint` | Run clippy + rustfmt checks |
+| `just check` | Format check + clippy + test |
+
+## Design Decisions
+
+- **Modality-pluggable execution**: Instead of hardcoding native OS capture, a trait-based Modality layer enables swapping execution targets (native, sandbox, NVMS, WSL, container) without changing caller code.
+- **WINE + DXvk for cross-OS interop**: Rather than maintaining a separate Windows VM, spawn WINE as a child process with C ABI passthrough and DXvk translation to run Windows binaries on Linux hosts.
+- **OpenRPC contract for all IPC**: Every JSON-RPC method is machine-specified in `contracts/openrpc.json`; client libraries (Rust, Python, C#) are generated from this contract, preventing API drift.
+
+## Integration Points
+
+- `pheno-cli-base` — Shared CLI framework and argument parsing utilities for `playcua-cli`
+
 ## Architecture (target)
 
 ```

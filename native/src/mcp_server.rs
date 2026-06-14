@@ -17,8 +17,7 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
     schemars::JsonSchema,
-    tool, tool_handler, tool_router,
-    ErrorData, ServerHandler,
+    tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -152,14 +151,14 @@ pub struct HashParams {
 /// Cheap to clone (the inner `Dispatcher` is wrapped in `Arc`, the
 /// `ToolRouter` is a `#[tool_router]`-generated field).
 #[derive(Clone)]
-pub struct BareCuaMcp {
+pub struct PlayCuaMcp {
     dispatcher: Arc<Dispatcher>,
     // Read by the `#[tool_handler]` macro, which the dead-code pass can't see.
     #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
-impl BareCuaMcp {
+impl PlayCuaMcp {
     /// Build from a fresh `App::build().dispatcher`. See `crate::app::App`.
     pub fn new(dispatcher: Arc<Dispatcher>) -> Self {
         Self {
@@ -170,11 +169,7 @@ impl BareCuaMcp {
 
     /// Forward a method+params to the underlying JSON-RPC dispatcher and render
     /// the response as an MCP `CallToolResult` (one structured JSON content).
-    async fn call(
-        &self,
-        method: &'static str,
-        params: Value,
-    ) -> Result<CallToolResult, ErrorData> {
+    async fn call(&self, method: &'static str, params: Value) -> Result<CallToolResult, ErrorData> {
         // The existing `Request` struct is a pure JSON-RPC 2.0 wire type with
         // no constructor — we build it inline. `id` is unused by the dispatcher
         // (it echoes whatever we pass), so a Null sentinel is fine.
@@ -190,10 +185,7 @@ impl BareCuaMcp {
             // Anything else becomes INTERNAL_ERROR with the code preserved in
             // the message for debugging.
             let (code, msg) = match err.code {
-                -32601 => (
-                    ErrorCode::METHOD_NOT_FOUND,
-                    err.message,
-                ),
+                -32601 => (ErrorCode::METHOD_NOT_FOUND, err.message),
                 -32602 => (ErrorCode::INVALID_PARAMS, err.message),
                 -32603 => (ErrorCode::INTERNAL_ERROR, err.message),
                 other => (
@@ -210,12 +202,12 @@ impl BareCuaMcp {
 
 // ---------------------------------------------------------------------------
 // Tool registrations (14 total). The `#[tool_router]` macro generates
-// `BareCuaMcp::tool_router()`; the `#[tool_handler]` macro generates the
+// `PlayCuaMcp::tool_router()`; the `#[tool_handler]` macro generates the
 // `ServerHandler` impl that delegates to it.
 // ---------------------------------------------------------------------------
 
 #[tool_router]
-impl BareCuaMcp {
+impl PlayCuaMcp {
     /// Capture the current screen (or named window) as base64-encoded PNG.
     #[tool(description = "Capture the screen (or a named window) as base64-encoded PNG bytes.")]
     async fn screenshot(
@@ -247,7 +239,9 @@ impl BareCuaMcp {
     }
 
     /// Click (or press/release) a mouse button at the given coordinates.
-    #[tool(description = "Click, press, or release a mouse button at the given screen coordinates.")]
+    #[tool(
+        description = "Click, press, or release a mouse button at the given screen coordinates."
+    )]
     async fn input_click(
         &self,
         Parameters(p): Parameters<ClickParams>,
@@ -257,7 +251,9 @@ impl BareCuaMcp {
     }
 
     /// Scroll the mouse wheel at the given coordinates.
-    #[tool(description = "Scroll the mouse wheel up, down, left, or right at the given coordinates.")]
+    #[tool(
+        description = "Scroll the mouse wheel up, down, left, or right at the given coordinates."
+    )]
     async fn input_scroll(
         &self,
         Parameters(p): Parameters<ScrollParams>,
@@ -286,7 +282,9 @@ impl BareCuaMcp {
     }
 
     /// Bring a window to the foreground.
-    #[tool(description = "Bring a window to the foreground by its platform handle (hwnd / xcb_window_t / NSWindow pointer).")]
+    #[tool(
+        description = "Bring a window to the foreground by its platform handle (hwnd / xcb_window_t / NSWindow pointer)."
+    )]
     async fn windows_focus(
         &self,
         Parameters(p): Parameters<FocusWindowParams>,
@@ -326,7 +324,9 @@ impl BareCuaMcp {
     }
 
     /// Query whether a process is still running.
-    #[tool(description = "Query whether a process is still running and its exit code (if terminated).")]
+    #[tool(
+        description = "Query whether a process is still running and its exit code (if terminated)."
+    )]
     async fn process_status(
         &self,
         Parameters(p): Parameters<StatusParams>,
@@ -336,7 +336,9 @@ impl BareCuaMcp {
     }
 
     /// Compute the fraction of pixels that differ between two PNG images.
-    #[tool(description = "Compute the fraction of pixels that differ between two base64-encoded PNGs.")]
+    #[tool(
+        description = "Compute the fraction of pixels that differ between two base64-encoded PNGs."
+    )]
     async fn analysis_diff(
         &self,
         Parameters(p): Parameters<DiffParams>,
@@ -380,7 +382,7 @@ impl BareCuaMcp {
 }
 
 #[tool_handler]
-impl ServerHandler for BareCuaMcp {
+impl ServerHandler for PlayCuaMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(

@@ -62,8 +62,7 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
     use windows::Win32::{
         Foundation::{BOOL, HWND, LPARAM},
         UI::WindowsAndMessaging::{
-            EnumWindows, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId,
-            IsWindowVisible,
+            EnumWindows, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
         },
     };
 
@@ -121,7 +120,9 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
 
 #[cfg(not(target_os = "windows"))]
 fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
-    Err(WindowError::Failed("EnumWindows is only available on Windows".to_string()))
+    Err(WindowError::Failed(
+        "EnumWindows is only available on Windows".to_string(),
+    ))
 }
 
 #[cfg(target_os = "windows")]
@@ -135,5 +136,7 @@ fn set_foreground_sync(hwnd: usize) -> Result<(), WindowError> {
 
 #[cfg(not(target_os = "windows"))]
 fn set_foreground_sync(_hwnd: usize) -> Result<(), WindowError> {
-    Err(WindowError::Failed("SetForegroundWindow is only available on Windows".to_string()))
+    Err(WindowError::Failed(
+        "SetForegroundWindow is only available on Windows".to_string(),
+    ))
 }

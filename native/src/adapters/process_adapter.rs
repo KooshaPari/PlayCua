@@ -71,7 +71,10 @@ impl ProcessPort for NativeProcessAdapter {
     async fn kill(&self, pid: u32) -> Result<(), ProcessError> {
         tokio::task::spawn_blocking(move || -> Result<(), ProcessError> {
             kill_platform(pid)?;
-            child_map().lock().unwrap().insert(pid, ChildState::Exited(-1));
+            child_map()
+                .lock()
+                .unwrap()
+                .insert(pid, ChildState::Exited(-1));
             info!("process.kill: pid={}", pid);
             Ok(())
         })
@@ -84,17 +87,19 @@ impl ProcessPort for NativeProcessAdapter {
         tokio::task::spawn_blocking(move || -> Result<ProcessStatus, ProcessError> {
             let running = is_running_platform(pid);
             if running {
-                Ok(ProcessStatus { running: true, exit_code: None })
+                Ok(ProcessStatus {
+                    running: true,
+                    exit_code: None,
+                })
             } else {
-                let code = child_map()
-                    .lock()
-                    .unwrap()
-                    .get(&pid)
-                    .and_then(|s| match s {
-                        ChildState::Exited(c) => Some(*c),
-                        ChildState::Running => None,
-                    });
-                Ok(ProcessStatus { running: false, exit_code: code })
+                let code = child_map().lock().unwrap().get(&pid).and_then(|s| match s {
+                    ChildState::Exited(c) => Some(*c),
+                    ChildState::Running => None,
+                });
+                Ok(ProcessStatus {
+                    running: false,
+                    exit_code: code,
+                })
             }
         })
         .await
@@ -106,7 +111,10 @@ impl ProcessPort for NativeProcessAdapter {
 fn kill_platform(pid: u32) -> Result<(), ProcessError> {
     let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
     if ret != 0 {
-        Err(ProcessError::KillFailed(format!("kill({}) failed: errno={}", pid, ret)))
+        Err(ProcessError::KillFailed(format!(
+            "kill({}) failed: errno={}",
+            pid, ret
+        )))
     } else {
         Ok(())
     }
@@ -130,7 +138,9 @@ fn kill_platform(pid: u32) -> Result<(), ProcessError> {
 
 #[cfg(not(any(unix, target_os = "windows")))]
 fn kill_platform(_pid: u32) -> Result<(), ProcessError> {
-    Err(ProcessError::KillFailed("process.kill not supported on this platform".to_string()))
+    Err(ProcessError::KillFailed(
+        "process.kill not supported on this platform".to_string(),
+    ))
 }
 
 #[cfg(unix)]

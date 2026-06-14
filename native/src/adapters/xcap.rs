@@ -5,7 +5,7 @@ use crate::domain::capture::{CaptureError, Frame};
 use crate::ports::CapturePort;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use image::DynamicImage;
+use image::{codecs::png::PngEncoder, ColorType, ImageEncoder};
 use tracing::instrument;
 
 pub struct XcapCapture;
@@ -28,12 +28,11 @@ impl CapturePort for XcapCapture {
     async fn capture_display(&self, monitor: u32) -> Result<Frame, CaptureError> {
         let monitor_idx = monitor as usize;
         tokio::task::spawn_blocking(move || -> Result<Frame, CaptureError> {
-            let monitors = xcap::Monitor::all()
-                .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
-            let mon = monitors
-                .into_iter()
-                .nth(monitor_idx)
-                .ok_or_else(|| CaptureError::WindowNotFound(format!("monitor index {}", monitor_idx)))?;
+            let monitors =
+                xcap::Monitor::all().map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
+            let mon = monitors.into_iter().nth(monitor_idx).ok_or_else(|| {
+                CaptureError::WindowNotFound(format!("monitor index {}", monitor_idx))
+            })?;
             let img = mon
                 .capture_image()
                 .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
@@ -51,11 +50,15 @@ impl CapturePort for XcapCapture {
             let title = title_owned.ok_or_else(|| {
                 CaptureError::WindowNotFound("no title provided for window capture".to_string())
             })?;
-            let windows = xcap::Window::all()
-                .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
+            let windows =
+                xcap::Window::all().map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
             let window = windows
                 .into_iter()
-                .find(|w| w.title().ok().map_or(false, |t| t.to_lowercase().contains(&title.to_lowercase())))
+                .find(|w| {
+                    w.title()
+                        .ok()
+                        .map_or(false, |t| t.to_lowercase().contains(&title.to_lowercase()))
+                })
                 .ok_or_else(|| CaptureError::WindowNotFound(title.clone()))?;
             let img = window
                 .capture_image()
@@ -68,18 +71,40 @@ impl CapturePort for XcapCapture {
 }
 
 fn encode_xcap_image(width: u32, height: u32, raw: Vec<u8>) -> Result<Frame, CaptureError> {
-    let img_buf = image::ImageBuffer::from_raw(width, height, raw)
-        .ok_or_else(|| CaptureError::EncodeFailed("ImageBuffer construction failed".to_string()))?;
-    let dyn_img = DynamicImage::ImageRgba8(img_buf);
-    encode_png_frame(&dyn_img)
+    encode_rgba_png_frame(width, height, &raw)
 }
 
-pub(crate) fn encode_png_frame(img: &DynamicImage) -> Result<Frame, CaptureError> {
-    let width = img.width();
-    let height = img.height();
+pub(crate) fn encode_rgba_png_frame(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> Result<Frame, CaptureError> {
     let mut buf = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+    PngEncoder::new(&mut buf)
+        .write_image(rgba, width, height, ColorType::Rgba8.into())
         .map_err(|e| CaptureError::EncodeFailed(e.to_string()))?;
     let data = BASE64.encode(&buf);
-    Ok(Frame { data, width, height })
+    Ok(Frame {
+        data,
+        width,
+        height,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_rgba_png_frame;
+
+    #[test]
+    fn encodes_rgba_pixels_as_png() {
+        let rgba = [0_u8, 255, 0, 255];
+        let frame = encode_rgba_png_frame(1, 1, &rgba).expect("png encoding should succeed");
+        let bytes = base64::decode(frame.data).expect("frame data should be valid base64");
+
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+
+        let image = image::load_from_memory(&bytes).expect("png should decode");
+        assert_eq!(image.width(), 1);
+        assert_eq!(image.height(), 1);
+    }
 }

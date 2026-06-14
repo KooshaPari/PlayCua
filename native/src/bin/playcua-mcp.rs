@@ -25,7 +25,7 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use playcua_native::app::App;
-use playcua_native::mcp_server::BareCuaMcp;
+use playcua_native::mcp_server::PlayCuaMcp;
 use playcua_native::modality::registry::{ModalityEnv, ModalityRegistry};
 use playcua_native::modality::ModalityKind;
 
@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
 }
 
 async fn serve_stdio(dispatcher: Arc<playcua_native::ipc::dispatcher::Dispatcher>) -> Result<()> {
-    let server = BareCuaMcp::new(dispatcher)
+    let server = PlayCuaMcp::new(dispatcher)
         .serve(rmcp::transport::stdio())
         .await
         .context("failed to start stdio MCP server")?;
@@ -109,7 +109,7 @@ async fn serve_http(
 ) -> Result<()> {
     let path = args.path.clone();
     let svc = StreamableHttpService::new(
-        move || Ok(BareCuaMcp::new(Arc::clone(&dispatcher))),
+        move || Ok(PlayCuaMcp::new(Arc::clone(&dispatcher))),
         rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default()
             .into(),
         rmcp::transport::streamable_http_server::StreamableHttpServerConfig::default()

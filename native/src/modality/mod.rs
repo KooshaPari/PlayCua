@@ -132,7 +132,11 @@ mod tests {
     fn parse_round_trips_all_kinds() {
         for k in ModalityKind::ALL {
             let s = k.as_str();
-            assert_eq!(ModalityKind::parse(s), Some(*k), "round-trip failed for {s}");
+            assert_eq!(
+                ModalityKind::parse(s),
+                Some(*k),
+                "round-trip failed for {s}"
+            );
         }
     }
 

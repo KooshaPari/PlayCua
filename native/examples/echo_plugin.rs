@@ -4,7 +4,7 @@
 //!
 //! 1. Define a struct that holds plugin state (here: a struct with no
 //!    state, but the pattern is `Arc<Mutex<T>>` for shared state).
-//! 2. Implement `playcua_native::plugins::MethodPlugin` for it.
+//! 2. Implement `playcua_native::plugins::TypedMethodPlugin` for it.
 //! 3. Register the plugin in a `PluginRegistry`.
 //! 4. Drive a JSON-RPC 2.0 loop that consults the registry for any
 //!    method not handled by a built-in.
@@ -31,7 +31,8 @@
 //! ## What this proves
 //!
 //! - Plugins can live entirely outside the daemon crate
-//! - The same `MethodPlugin` trait is consumed by the binary's own
+//! - The same raw `MethodPlugin` trait is consumed by the binary's own
+//!   dispatcher, while plugin authors can stay on typed wrappers
 //!   dispatcher, with no monkey-patching or trait-object casting
 //! - The JSON-RPC 2.0 wire format is identical to `playcua-native`
 //! - Testability: the plugin can be unit-tested without any I/O
@@ -40,7 +41,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use playcua_native::ipc::{read_request, write_response, Response};
-use playcua_native::plugins::{MethodPlugin, PluginRegistry};
+use playcua_native::plugins::{PluginRegistry, TypedMethodPlugin};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::io::{AsyncWriteExt, BufReader};
 
@@ -60,20 +62,36 @@ impl EchoPlugin {
 }
 
 /// Step 2: implement the trait.
+#[derive(Debug, Deserialize)]
+struct EchoParams {
+    #[serde(default)]
+    hello: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct EchoResult {
+    echoed: EchoParams,
+    tag: &'static str,
+    len: usize,
+}
+
 #[async_trait]
-impl MethodPlugin for EchoPlugin {
+impl TypedMethodPlugin for EchoPlugin {
     fn method_name(&self) -> &'static str {
         "acme.echo"
     }
 
-    async fn handle(&self, params: Value) -> anyhow::Result<Value> {
+    type Params = EchoParams;
+    type Output = EchoResult;
+
+    async fn handle_typed(&self, params: Self::Params) -> anyhow::Result<Self::Output> {
         // Tiny bit of work: wrap the params in a {"echoed": ..., "tag": ...}
         // envelope so callers can tell which plugin answered.
-        Ok(json!({
-            "echoed": params,
-            "tag": self.tag,
-            "len": params.to_string().len(),
-        }))
+        Ok(EchoResult {
+            len: serde_json::to_string(&params)?.len(),
+            echoed: params,
+            tag: self.tag,
+        })
     }
 }
 
@@ -81,13 +99,16 @@ impl MethodPlugin for EchoPlugin {
 pub struct ReversePlugin;
 
 #[async_trait]
-impl MethodPlugin for ReversePlugin {
+impl TypedMethodPlugin for ReversePlugin {
     fn method_name(&self) -> &'static str {
         "acme.reverse"
     }
 
-    async fn handle(&self, params: Value) -> anyhow::Result<Value> {
-        let s = params.as_str().unwrap_or("");
+    type Params = String;
+    type Output = Value;
+
+    async fn handle_typed(&self, params: Self::Params) -> anyhow::Result<Self::Output> {
+        let s = params;
         let reversed: String = s.chars().rev().collect();
         Ok(json!({ "reversed": reversed }))
     }
@@ -155,7 +176,10 @@ async fn main() -> anyhow::Result<()> {
             Response::err(
                 id,
                 -32601,
-                format!("Method not found: {method} (registered: {})", registry.len()),
+                format!(
+                    "Method not found: {method} (registered: {})",
+                    registry.len()
+                ),
             )
         };
 
@@ -176,10 +200,7 @@ mod tests {
     #[tokio::test]
     async fn echo_plugin_round_trips_params() {
         let p = EchoPlugin::new("test");
-        let out = p
-            .handle(json!({ "hello": "world" }))
-            .await
-            .unwrap();
+        let out = p.handle(json!({ "hello": "world" })).await.unwrap();
         assert_eq!(out["echoed"]["hello"], "world");
         assert_eq!(out["tag"], "test");
     }

@@ -27,7 +27,11 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 #[derive(Parser, Debug)]
-#[command(name = "playcua-cli", version, about = "Shell client for playcua-native")]
+#[command(
+    name = "playcua-cli",
+    version,
+    about = "Shell client for playcua-native"
+)]
 struct Cli {
     /// Path to the playcua-native binary. Defaults to $PLAYCUA_NATIVE
     /// or `playcua-native` on $PATH.
@@ -159,15 +163,22 @@ async fn main() -> Result<()> {
             "screenshot".to_string(),
             json!({ "display": display, "window_title": window }),
         ),
-        Cmd::Click { x, y, button, action } => (
+        Cmd::Click {
+            x,
+            y,
+            button,
+            action,
+        } => (
             "input.click".to_string(),
             json!({ "x": x, "y": y, "button": button, "action": action }),
         ),
-        Cmd::Move { x, y } => (
-            "input.move".to_string(),
-            json!({ "x": x, "y": y }),
-        ),
-        Cmd::Scroll { x, y, direction, amount } => (
+        Cmd::Move { x, y } => ("input.move".to_string(), json!({ "x": x, "y": y })),
+        Cmd::Scroll {
+            x,
+            y,
+            direction,
+            amount,
+        } => (
             "input.scroll".to_string(),
             json!({ "x": x, "y": y, "direction": direction, "amount": amount }),
         ),
@@ -198,10 +209,7 @@ async fn main() -> Result<()> {
         }
         Cmd::Hash { image } => {
             let image_b64 = base64_encode_file(image).await?;
-            (
-                "analysis.hash".to_string(),
-                json!({ "image": image_b64 }),
-            )
+            ("analysis.hash".to_string(), json!({ "image": image_b64 }))
         }
     };
 

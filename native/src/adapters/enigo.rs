@@ -1,7 +1,9 @@
 //! EnigoInput adapter — cross-platform input injection via the enigo crate.
 //! Implements InputPort for all platforms.
 
-use crate::domain::input::{InputError, Key, KeyAction, MouseAction, MouseButton, MouseEvent, ScrollDirection};
+use crate::domain::input::{
+    InputError, Key, KeyAction, MouseAction, MouseButton, MouseEvent, ScrollDirection,
+};
 use crate::ports::InputPort;
 use async_trait::async_trait;
 use enigo::{Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
@@ -65,7 +67,12 @@ impl InputPort for EnigoInput {
                         .move_mouse(x, y, Coordinate::Abs)
                         .map_err(|e| InputError::InjectionFailed(e.to_string()))?;
                 }
-                MouseEvent::Click { x, y, button, action } => {
+                MouseEvent::Click {
+                    x,
+                    y,
+                    button,
+                    action,
+                } => {
                     enigo
                         .move_mouse(x, y, Coordinate::Abs)
                         .map_err(|e| InputError::InjectionFailed(e.to_string()))?;
@@ -79,7 +86,12 @@ impl InputPort for EnigoInput {
                         .button(btn, dir)
                         .map_err(|e| InputError::InjectionFailed(e.to_string()))?;
                 }
-                MouseEvent::Scroll { x, y, direction, amount } => {
+                MouseEvent::Scroll {
+                    x,
+                    y,
+                    direction,
+                    amount,
+                } => {
                     enigo
                         .move_mouse(x, y, Coordinate::Abs)
                         .map_err(|e| InputError::InjectionFailed(e.to_string()))?;
