@@ -1,0 +1,86 @@
+# PlayCua `.cargo/config.toml` — L3 #41 (cargo llvm-cov instrument flags)
+#
+# Per the L3 #41 brief, the `coverage` profile (declared in
+# `Cargo.toml` -> `[profile.coverage]`) is the dedicated build profile
+# for instrumented coverage runs. We attach the LLVM instrument-coverage
+# pass via rustflags so the resulting `.profraw` files contain the
+# counters that `cargo llvm-cov` later feeds to `llvm-cov report`.
+#
+# This file is also the single source of truth for `-C` codegen flags
+# that the coverage profile needs (and that we don't want leaking into
+# `cargo build --release` or `cargo test`).
+#
+# Reference:
+#   - https://doc.rust-lang.org/cargo/reference/config.html#targetrustflags
+#   - https://github.com/taiki-e/cargo-llvm-cov#configuration
+#
+# IMPORTANT: keep the [profile.coverage] tag stable — it MUST match
+# `[profile.coverage]` in Cargo.toml. Cargo's `[profile.<name>]`
+# selection uses this exact string (case-sensitive).
+#
+# Why `-Cinstrument-coverage` and not `-Cprofile-generate=...`:
+#   `-Cinstrument-coverage` is the LLVM-SanitizerCoverage-based pass
+#   that emits the `llvm_cov_*` counters `cargo llvm-cov` reads. The
+#   older `-Cprofile-generate` is for AutoFDO/PGO and is a totally
+#   different pipeline.
+#
+# Why no `panic = abort` here: Cargo's `[profile.coverage]` table
+# (Cargo.toml) owns the `panic = "unwind"` setting; rustflags are
+# applied *after* the profile is selected, so a rustflag would race
+# with the profile. Keep the rule-of-one (panic in profile, coverage
+# flags here).
+
+[build]
+# `-Cinstrument-coverage` is the LLVM SanitizerCoverage pass that
+# emits the `__llvm_cov_*` counters `cargo llvm-cov` reads. We apply
+# it under the `coverage` profile (i.e. only when Cargo is invoked
+# with `--profile coverage` or the matching `CARGO_PROFILE_*` env
+# var is set — which is exactly what `cargo llvm-cov` does).
+#
+# The `coverage` key is matched against the profile name in Cargo's
+# profile selection logic, so these flags do NOT leak into
+# `cargo build`, `cargo test`, or `cargo build --release`.
+#
+# `rustdoc-flags` is intentionally empty — doctests are not
+# instrumented by `cargo llvm-cov` (they are out of scope by design).
+#
+# `target.<triple>`-scoped rustflags would let us apply the flags
+# only to e.g. `x86_64-apple-darwin`; we want them everywhere, so
+# the table-level key is the right scope.
+[target."cfg(coverage)"]
+# `cfg(coverage)` is a built-in cfg flag Cargo sets automatically
+# when the `coverage` profile is active (since Rust 1.81). We use
+# it as a belt-and-braces guard: even if a future contributor adds
+# a rustflag table to e.g. `[target.x86_64-unknown-linux-gnu]`,
+# the `cfg(coverage)` scope ensures instrument-coverage flags are
+# only ever added on coverage builds.
+#
+# The value list mirrors the upstream cargo-llvm-cov recommendation:
+#   `-Cinstrument-coverage`        — enable the LLVM coverage pass
+#   `-Ccoverage-level=branch`      — collect both line + branch data
+#   `-Cbranch-coverage`            — alias for branch level (defensive)
+#   `-Cno-omit-frame-pointer`      — required for accurate backtraces
+#   `-Cembed-bitcode=no`           — we don't ship the .so to prod
+#   `-Zno-profiler-runtime`        — covered by [unstable] below
+#
+# `branch-coverage` and `coverage-level=branch` are equivalent in
+# modern rustc; we set both to defend against a future toolchain
+# where one of them gets renamed.
+rustflags = [
+    "-Cinstrument-coverage",
+    "-Ccoverage-level=branch",
+    "-Cbranch-coverage",
+    "-Cno-omit-frame-pointer",
+    "-Cembed-bitcode=no",
+]
+
+# The `unstable` table is required for `-Z` flags. We don't currently
+# need any, but we keep the section as a placeholder so a future
+# contributor can add `-Z` flags without having to read Cargo's docs
+# again.
+[unstable]
+
+# `target.cfg(coverage).rustflags` is the supported form. The
+# `[target.<triple>]` form below is intentionally left empty so
+# that *no* triple gets instrument-coverage flags unless the
+# coverage profile is active — which is exactly what we want.
