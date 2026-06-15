@@ -4,7 +4,8 @@
 use crate::domain::capture::{CaptureError, Frame};
 use crate::ports::CapturePort;
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use image::{codecs::png::PngEncoder, ColorType, ImageEncoder};
 use tracing::instrument;
 
@@ -83,7 +84,7 @@ pub(crate) fn encode_rgba_png_frame(
     PngEncoder::new(&mut buf)
         .write_image(rgba, width, height, ColorType::Rgba8.into())
         .map_err(|e| CaptureError::EncodeFailed(e.to_string()))?;
-    let data = BASE64.encode(&buf);
+    let data = STANDARD.encode(&buf);
     Ok(Frame {
         data,
         width,
@@ -94,12 +95,14 @@ pub(crate) fn encode_rgba_png_frame(
 #[cfg(test)]
 mod tests {
     use super::encode_rgba_png_frame;
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
 
     #[test]
     fn encodes_rgba_pixels_as_png() {
         let rgba = [0_u8, 255, 0, 255];
         let frame = encode_rgba_png_frame(1, 1, &rgba).expect("png encoding should succeed");
-        let bytes = base64::decode(frame.data).expect("frame data should be valid base64");
+        let bytes = STANDARD.decode(frame.data).expect("frame data should be valid base64");
 
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
 

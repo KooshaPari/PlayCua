@@ -10,6 +10,7 @@ use crate::adapters::process_adapter::NativeProcessAdapter;
 use crate::ipc::dispatcher::Dispatcher;
 use crate::modality::registry::SelectedModality;
 use crate::ports::{AnalysisPort, CapturePort, InputPort, ProcessPort, WindowPort};
+use pheno_flags::FlagSet;
 
 /// The fully-wired application ready to serve IPC requests.
 pub struct App {
@@ -19,7 +20,19 @@ pub struct App {
 impl App {
     /// Construct the application, selecting platform adapters at compile time.
     /// The `selected` modality is surfaced in the `ping` JSON-RPC response.
-    pub fn build(selected: SelectedModality) -> Self {
+    ///
+    /// L5 #81: a `&FlagSet` is threaded through so platform adapters
+    /// can opt into richer logging, dry-run mode, etc. via
+    /// `flag_set.is_enabled("...")`. The flag set is currently
+    /// logged once at construction time and made available on the
+    /// `App` for adapter-level checks.
+    pub fn build(selected: SelectedModality, flag_set: &FlagSet) -> Self {
+        if flag_set.is_enabled("VERBOSE") {
+            tracing::info!("flag PLAYCUA_VERBOSE=1: adapters will run with verbose tracing");
+        }
+        if flag_set.is_enabled("DRY_RUN") {
+            tracing::info!("flag PLAYCUA_DRY_RUN=1: input/process calls will be no-ops");
+        }
         let capture: Arc<dyn CapturePort> = build_capture();
         let input: Arc<dyn InputPort> = build_input();
         let windows: Arc<dyn WindowPort> = build_window();

@@ -29,6 +29,10 @@ enum SandboxBackend {
     Firejail,
     Firecracker,
     Runsc,
+    // GVisor is a user-facing alias for Runsc (see `binary()` below).
+    // It's only constructed when a user explicitly asks for it via
+    // `PLAYCUA_SANDBOX_BACKEND=gvisor`, so allow dead_code.
+    #[allow(dead_code)]
     GVisor,
 }
 
@@ -63,17 +67,14 @@ impl SandboxModality {
                         _ => return None,
                     });
                 }
-                for backend in [
+                [
                     SandboxBackend::SandboxExec,
                     SandboxBackend::Firejail,
                     SandboxBackend::Firecracker,
                     SandboxBackend::Runsc,
-                ] {
-                    if which(backend.binary()).is_some() {
-                        return Some(backend);
-                    }
-                }
-                None
+                ]
+                .into_iter()
+                .find(|backend| which(backend.binary()).is_some())
             })
             .as_ref()
             .copied()

@@ -30,12 +30,9 @@ impl ContainerModality {
                         _ => return None,
                     });
                 }
-                for cli in ["docker", "podman", "nerdctl"] {
-                    if which(cli).is_some() {
-                        return Some(cli);
-                    }
-                }
-                None
+                ["docker", "podman", "nerdctl"]
+                    .into_iter()
+                    .find(|cli| which(cli).is_some())
             })
             .as_ref()
             .copied()
