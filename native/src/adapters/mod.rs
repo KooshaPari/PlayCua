@@ -5,10 +5,8 @@
 
 pub mod analysis_adapter;
 pub mod enigo;
-pub mod input_capture;
 pub mod process_adapter;
-pub mod renderer;
-pub mod sandbox;
+pub mod tokio;
 pub mod xcap;
 
 #[cfg(target_os = "windows")]
