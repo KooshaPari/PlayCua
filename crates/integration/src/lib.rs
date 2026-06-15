@@ -1,23 +1,5 @@
+use pheno_config::Config;
 use pheno_errors::AppError;
-use serde::Deserialize;
-
-/// Runtime configuration for the PlayCua application.
-///
-/// Loaded via `pheno-config` from environment variables with the `PLAYCUA` prefix.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct PlayCuaConfig {
-    /// Service base URL.
-    pub url: String,
-    /// Service listen port.
-    pub port: u16,
-    /// Tracing/log filter level.
-    pub log_level: String,
-    /// On-disk database path.
-    pub db_path: String,
-    /// Optional feature flags.
-    #[serde(default)]
-    pub feature_flags: Vec<String>,
-}
 
 /// The canonical PlayCua application harness.
 ///
@@ -28,7 +10,7 @@ pub struct PlayCuaConfig {
 #[derive(Debug, Clone)]
 pub struct PlayCuaApp {
     /// The loaded runtime configuration.
-    pub config: PlayCuaConfig,
+    pub config: Config,
 }
 
 impl PlayCuaApp {
@@ -41,7 +23,7 @@ impl PlayCuaApp {
     /// Returns `AppError::Domain` when config loading fails, or
     /// `AppError::Storage` for I/O-related failures.
     pub fn new() -> Result<Self, AppError> {
-        let config: PlayCuaConfig =
+        let config =
             pheno_config::load_from_env("PLAYCUA").map_err(|e| AppError::domain(e.to_string()))?;
 
         pheno_tracing::init();
@@ -60,7 +42,7 @@ impl PlayCuaApp {
     /// Creates a `PlayCuaApp` from an explicitly provided config.
     ///
     /// Tracing is still initialized via `pheno-tracing::init()`.
-    pub fn with_config(config: PlayCuaConfig) -> Self {
+    pub fn with_config(config: Config) -> Self {
         pheno_tracing::init();
 
         tracing::info!(
@@ -86,35 +68,46 @@ impl PlayCuaApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pheno_config::ConfigBuilder;
+
+    /// Helper: build a canonical Config suitable for unit tests
+    /// without touching the environment.
+    fn sample_config() -> Config {
+        ConfigBuilder::new()
+            .url("http://localhost:9090")
+            .db_path("/var/lib/playcua.db")
+            .port(9090)
+            .log_level("debug")
+            .feature_flag("alpha")
+            .build()
+            .expect("config should build")
+    }
 
     #[test]
     fn app_loads_config() {
-        // Set env vars so pheno-config can materialise a PlayCuaConfig.
+        // Set env vars so pheno-config can materialise a Config.
         std::env::set_var("PLAYCUA_URL", "http://localhost:8080");
         std::env::set_var("PLAYCUA_PORT", "8080");
         std::env::set_var("PLAYCUA_LOG_LEVEL", "info");
         std::env::set_var("PLAYCUA_DB_PATH", "/tmp/playcua.db");
-        std::env::set_var("PLAYCUA_FEATURE_FLAGS", "[\"beta\",\"gamma\"]");
+        std::env::set_var("PLAYCUA_FEATURE_FLAGS", "beta,gamma");
 
         let app = PlayCuaApp::new().expect("app should load config from env");
         assert_eq!(app.config.url, "http://localhost:8080");
         assert_eq!(app.config.port, 8080);
         assert_eq!(app.config.log_level, "info");
         assert_eq!(app.config.db_path, "/tmp/playcua.db");
-        assert_eq!(app.config.feature_flags, vec!["beta", "gamma"]);
+        assert_eq!(
+            app.config.feature_flags,
+            vec!["beta".to_string(), "gamma".to_string()]
+        );
     }
 
     #[test]
     fn app_initializes_tracing() {
-        // Tracing is already global; just verify with_config does not panic
-        // and that the app struct is correctly formed.
-        let config = PlayCuaConfig {
-            url: "http://localhost:9090".to_string(),
-            port: 9090,
-            log_level: "debug".to_string(),
-            db_path: "/var/lib/playcua.db".to_string(),
-            feature_flags: vec!["alpha".to_string()],
-        };
+        // Tracing is global and idempotent — with_config must not panic
+        // and the resulting app must round-trip the config it was given.
+        let config = sample_config();
 
         let app = PlayCuaApp::with_config(config.clone());
         assert_eq!(app.config, config);
@@ -122,14 +115,7 @@ mod tests {
 
     #[test]
     fn app_run_returns_ok() {
-        let config = PlayCuaConfig {
-            url: "http://localhost:9090".to_string(),
-            port: 9090,
-            log_level: "debug".to_string(),
-            db_path: "/var/lib/playcua.db".to_string(),
-            feature_flags: vec![],
-        };
-
+        let config = sample_config();
         let app = PlayCuaApp::with_config(config);
         assert!(app.run().is_ok());
     }
