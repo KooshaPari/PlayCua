@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## 📚 Documentation
 - Docs: add SPEC.md (`ab9d42a`)
 ## 🔨 Other
@@ -21,3 +35,4 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (`b3c1331`)
 Adds legacy-tooling-gate.yml monitoring per CLAUDE.md Technology Adoption Philosophy.
 
 Refs: phenotype/repos/tooling/legacy-enforcement/ (`6081ace`)
+[Unreleased]: https://github.com/KooshaPari/PlayCua/compare/HEAD
