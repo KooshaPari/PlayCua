@@ -62,14 +62,14 @@ impl EchoPlugin {
 }
 
 /// Step 2: implement the trait.
-#[derive(Debug, Deserialize)]
-struct EchoParams {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct EchoParams {
     #[serde(default)]
     hello: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-struct EchoResult {
+pub struct EchoResult {
     echoed: EchoParams,
     tag: &'static str,
     len: usize,

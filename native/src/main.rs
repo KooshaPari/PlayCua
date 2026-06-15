@@ -18,10 +18,18 @@
 //!
 //! Mode selection is by argv (positional, not flag) so the binary stays
 //! drop-in compatible with shell pipelines.
+//!
+//! L5 #81 wiring: this binary now initialises its tracing subscriber
+//! via `pheno_tracing::init()` (JSON-to-stderr), reads its `PLAYCUA_*`
+//! boolean feature flags via `pheno_flags::FlagSet::from_env("PLAYCUA")`,
+//! and surfaces every error through the canonical `pheno_errors::AppError`
+//! so the process exit code is a uniform `AppError::exit_code()`.
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::Error as AnyhowError;
+use pheno_errors::AppError;
+use pheno_flags::FlagSet;
 use playcua_native::app;
 use playcua_native::ipc;
 use playcua_native::ipc::{read_request, write_response};
@@ -29,7 +37,6 @@ use playcua_native::modality::ModalityKind;
 use playcua_native::modality::{ModalityEnv, ModalityRegistry};
 use tokio::io::{self, AsyncWriteExt, BufReader};
 use tracing::{error, info};
-use tracing_subscriber::EnvFilter;
 
 mod adapters;
 mod domain;
@@ -39,22 +46,30 @@ mod ports;
 mod socket;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // Initialize tracing to stderr in JSON format.
-    // Level is controlled by PLAYCUA_LOG env var (default: info).
-    tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .with_env_filter(
-            EnvFilter::from_env("PLAYCUA_LOG")
-                .add_directive("playcua_native=info".parse().unwrap()),
-        )
-        .json()
-        .init();
+async fn main() -> Result<(), AppError> {
+    // L5 #81: tracing init goes through pheno_tracing::init() so the
+    // fleet has a single canonical subscriber configuration (JSON to
+    // stderr, `RUST_LOG` env, default `info`). Idempotent.
+    pheno_tracing::init();
 
     info!(
         version = env!("CARGO_PKG_VERSION"),
         "playcua-native starting"
     );
+
+    // L5 #81: feature flags are loaded from `PLAYCUA_<KEY>` env vars.
+    // The `FlagSet` is passed through to the App builder so platform
+    // adapters can opt into richer logging, dry-run mode, etc. via
+    // `flag_set.is_enabled("...")`. Errors here are surfaced through
+    // `AppError::Flag` (which maps to exit code 78, EX_CONFIG).
+    let flag_set = FlagSet::from_env("PLAYCUA")?;
+    if flag_set.len() > 0 {
+        info!(
+            count = flag_set.len(),
+            flags = ?flag_set.iter().collect::<Vec<_>>(),
+            "playcua feature flags loaded from env"
+        );
+    }
 
     // Parse --modality flag from argv (before the --socket switch).
     // Args: [0] = binary, [1] = "--modality" (optional), [2] = KIND (if [1]),
@@ -76,14 +91,14 @@ async fn main() -> Result<()> {
 
     // Wire up all adapters via DI. Wrapped in Arc so the daemon mode
     // can hand a cheap clone to each connection handler.
-    let app = Arc::new(app::App::build(selected));
+    let app = Arc::new(app::App::build(selected, &flag_set));
 
     // Mode dispatch: --socket <path> for daemon mode, absent for stdio.
     if rest_args.len() >= 2 && rest_args[0] == "--socket" {
         #[cfg(unix)]
         {
             let socket_path = std::path::PathBuf::from(&rest_args[1]);
-            return socket::run(app, socket_path).await;
+            return socket::run(app, socket_path).await.map_err(into_app);
         }
         #[cfg(not(unix))]
         {
@@ -92,7 +107,17 @@ async fn main() -> Result<()> {
         }
     }
 
-    run_stdio(app).await
+    run_stdio(app).await.map_err(into_app)
+}
+
+/// Convert an `anyhow::Error` (which doesn't implement
+/// `std::error::Error`) into a `pheno_errors::AppError` for the
+/// top-level `Result` signature. We preserve the formatted chain
+/// (so log lines are useful) and stash the source error in
+/// `AppError::Other`.
+fn into_app(e: AnyhowError) -> AppError {
+    let msg = format!("{e:#}");
+    AppError::Other(msg.into())
 }
 
 /// Pull `--modality <KIND>` off the front of `args`. Returns the parsed
@@ -120,7 +145,7 @@ fn parse_modality_arg(args: &[String]) -> (Option<ModalityKind>, &[String]) {
 }
 
 /// Stdio JSON-RPC 2.0 loop (the original `playcua-native` mode).
-async fn run_stdio(app: Arc<app::App>) -> Result<()> {
+async fn run_stdio(app: Arc<app::App>) -> anyhow::Result<()> {
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin);
     let stdout = io::stdout();

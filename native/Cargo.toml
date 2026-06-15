@@ -55,6 +55,18 @@ clap.workspace = true
 axum.workspace = true
 tower.workspace = true
 
+# pheno-* fleet crates (L5 #81 PlayCua full integration).
+#   - pheno-errors:  canonical AppError type used by the top-level
+#                    `Result`/`main` signature.
+#   - pheno-tracing: JSON-to-stderr tracing init (replaces the
+#                    hand-rolled `tracing_subscriber::fmt()` chain
+#                    that lived in main.rs before this change).
+#   - pheno-flags:   env-driven boolean feature flags (loaded from
+#                    `PLAYCUA_*` env vars at startup).
+pheno-errors  = { workspace = true }
+pheno-tracing = { workspace = true }
+pheno-flags   = { workspace = true }
+
 [features]
 # Default = stdio JSON-RPC 2.0 server (CLI / pipe-mode launchers).
 default = []
