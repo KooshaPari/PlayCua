@@ -96,7 +96,7 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
         D3D11CreateDevice(
             None,
             D3D_DRIVER_TYPE_HARDWARE,
-            None,
+            windows::Win32::Foundation::HMODULE::default(),
             D3D11_CREATE_DEVICE_BGRA_SUPPORT,
             None,
             D3D11_SDK_VERSION,
@@ -162,8 +162,8 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
 
     frame_pool
         .FrameArrived(&windows::Foundation::TypedEventHandler::new(
-            move |pool: &Option<Direct3D11CaptureFramePool>, _| {
-                if let Some(pool) = pool {
+            move |pool, _| {
+                if let Some(pool) = pool.as_ref() {
                     if let Ok(frame) = pool.TryGetNextFrame() {
                         let result = extract_frame_pixels(&frame, width, height);
                         if let Some(sender) = tx2.lock().unwrap().take() {
