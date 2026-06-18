@@ -33,6 +33,29 @@ path = "src/lib.rs"
 name = "type_strictness_test"
 path = "../tests/type_strictness_test.rs"
 
+# Phase 3 — wire the FR-annotated integration tests that live at the
+# workspace root. Each file's module-level doc comment cites the FR(s)
+# it covers; see `docs/specs/TRACEABILITY.md` for the full matrix.
+[[test]]
+name = "screenshot_test"
+path = "../tests/screenshot_test.rs"
+
+[[test]]
+name = "input_dispatch_test"
+path = "../tests/input_dispatch_test.rs"
+
+[[test]]
+name = "process_lifecycle_test"
+path = "../tests/process_lifecycle_test.rs"
+
+[[test]]
+name = "analysis_hash_test"
+path = "../tests/analysis_hash_test.rs"
+
+[[test]]
+name = "modality_ping_test"
+path = "../tests/modality_ping_test.rs"
+
 [dependencies]
 tokio.workspace = true
 serde.workspace = true
