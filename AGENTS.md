@@ -28,4 +28,16 @@ See CLAUDE.md for language stack, build commands, and testing requirements.
 
 ---
 
+## Architecture Decision Records
+
+PlayCua documents architecture decisions as individual ADR files in `docs/adr/`:
+
+| ID | Title | Status | Location |
+|----|-------|--------|----------|
+| ADR-006 | Modality Abstraction --- Pluggable Execution Environment | Accepted | [`docs/adr/ADR-006-modality-abstraction.md`](docs/adr/ADR-006-modality-abstraction.md) |
+| ADR-007 | WINE-Bridge Research and Interop Strategy | Research Complete | [`docs/adr/ADR-007-wine-bridge-research.md`](docs/adr/ADR-007-wine-bridge-research.md) |
+| ADR-008 | MCP Server + CLI as First-Class Surfaces | Accepted | [`docs/adr/ADR-008-mcp-and-cli-surfaces.md`](docs/adr/ADR-008-mcp-and-cli-surfaces.md) |
+
+---
+
 **Parent contract:** Extends Phenotype-org governance. See `CLAUDE.md` and parent `AGENTS.md` for complete operating procedures.
