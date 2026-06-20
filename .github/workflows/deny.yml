@@ -1,4 +1,14 @@
-name: cargo-deny
+# orch-v12-s5-007 — Supply-chain / license / advisory gate.
+# Runs:
+#   1. cargo-deny  — RustSec advisories + licenses + bans + sources
+#   2. gomod check — advisory check on go.mod (no-op for this repo today;
+#                    activate automatically when a Go module is added)
+#
+# The existing deny.yml referenced a deny.toml that was never committed;
+# this revision ships one in the same PR so the job can actually run.
+
+name: cargo-deny + gomod check
+
 permissions:
   contents: read
   pull-requests: read
@@ -9,34 +19,48 @@ on:
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
       - 'deny.toml'
-      - '.github/workflows/cargo-deny.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/deny.yml'
   push:
     branches:
       - master
+      - main
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
       - 'deny.toml'
-      - '.github/workflows/cargo-deny.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/deny.yml'
   schedule:
-    - cron: '0 9 * * 1'
-
-
+    - cron: '0 9 * * 1'   # Mondays 09:00 UTC
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Rust — cargo-deny (advisories, licenses, bans, sources).
+  # ---------------------------------------------------------------------------
   cargo-deny:
+    name: cargo-deny (advisories, licenses, bans, sources)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
@@ -47,3 +71,47 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe
         with:
           rust-version: stable
+          # Run the full check matrix (advisories, licenses, bans, sources,
+          # wildcards, repeated deps). Fail on any finding.
+          command: deny check
+
+  # ---------------------------------------------------------------------------
+  # 2. Go — govulncheck / gomod check.
+  #    Today the repo has no go.mod, so this job is a fast no-op; if one is
+  #    added it will start scanning automatically without further edits.
+  # ---------------------------------------------------------------------------
+  gomod:
+    name: gomod check (no-op until go.mod lands)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Detect go.mod
+        id: detect
+        run: |
+          if [ -f go.mod ]; then
+            echo "has_gomod=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_gomod=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip notice
+        if: steps.detect.outputs.has_gomod == 'false'
+        run: |
+          echo "::notice::No go.mod at repo root — gomod check is a no-op for this commit."
+
+      - name: Setup Go 1.23
+        if: steps.detect.outputs.has_gomod == 'true'
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: govulncheck
+        if: steps.detect.outputs.has_gomod == 'true'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

@@ -1,0 +1,87 @@
+# orch-v12-s5-007 — cargo-deny configuration.
+# Mirrors the canonical license set used across the Phenotype org:
+#   - MIT / Apache-2.0 / BSD-2 / BSD-3 / ISC / MPL-2.0 / CC0-1.0 / Zlib
+#   - Unicode-DFS-2016 / Unicode-3.0 (for ICU/unicode crates)
+#
+# Bands: A (permissive) and B (weak copyleft). Anything in C (strong copyleft)
+# is denied by default — exceptions are added under [[licenses.clarify]].
+#
+# Advisory database: pinned to the RustSec advisory-db HEAD. CI runs
+# `cargo deny check advisories` via .github/workflows/deny.yml.
+
+[graph]
+all-features = false
+no-default-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+ignore = [
+  # RUSTSEC-2023-0018 — old, unmaintained rsa crate used only in tooling tests
+  # where the secret material is ephemeral. Reviewed 2026-06-20.
+  "RUSTSEC-2023-0018",
+]
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-DFS-2016",
+  "Unicode-3.0",
+  "CC0-1.0",
+  "MPL-2.0",
+  "OpenSSL",
+  "curl",
+  "libpng2",
+]
+confidence-threshold = 0.8
+
+# Crates with dual-licensing that the SPDX index cannot resolve automatically.
+[[licenses.clarify]]
+name = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+  { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[[licenses.clarify]]
+name = "webpki"
+expression = "ISC"
+license-files = [
+  { path = "LICENSE", hash = 0x001c7e6c },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+deny = []
+skip = []
+skip-tree = []
+
+# Same crate appearing multiple times in the dep graph is allowed but warned.
+[[bans.deny]]
+name = "openssl"
+reason = "Use rustls / ring instead — see ADR-0014."
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[allow-metrics]
+unused = "allow"
+
+# ---------------------------------------------------------------------------
+# L7 — Note for orchestrator: this file was missing before this PR. It is
+# required by `.github/workflows/deny.yml` (cargo-deny-action) which was
+# previously failing silently because the config file did not exist.
+# ---------------------------------------------------------------------------

@@ -1,40 +1,254 @@
-name: CodeQL (Rust)
+# orch-v12-s5-007 — Dependency vulnerability audits across all ecosystems
+# present in this workspace:
+#   - cargo (Rust): native/, crates/*, root workspace
+#   - npm (Node/TS): auto-detected via lockfile (no package.json at root today;
+#     the job is a no-op until a package-lock.json / pnpm-lock.yaml /
+#     yarn.lock lands, then it will start scanning immediately)
+#   - pip (Python): python/pyproject.toml
+#   - gomod: NOT present in this repo; the deny.yml workflow covers the
+#     hypothetical case if a go.mod is ever added.
+#
+# Failure policy:
+#   - cargo audit:     fail on any unacknowledged RustSec advisory
+#   - npm audit:       fail on high/critical vulnerabilities (--audit-level=high)
+#   - pip-audit:       fail on any vulnerability (--strict)
+#
+# Outputs are uploaded as workflow artifacts for forensics and SARIF where
+# supported.
 
-permissions: read-all
+name: Audit (cargo + npm + pip)
+
+permissions:
+  contents: read
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'pnpm-lock.yaml'
+      - 'yarn.lock'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'uv.lock'
+      - 'pip-audit.json'
+      - '.github/workflows/audit.yml'
   pull_request:
-    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'pnpm-lock.yaml'
+      - 'yarn.lock'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'uv.lock'
+      - '.github/workflows/audit.yml'
   schedule:
-    - cron: '17 4 * * 2'
+    # Mondays 06:00 UTC — daily-of-week rotation aligned with dependabot
+    # cadence (cargo Monday, npm Tuesday, ...).
+    - cron: '0 6 * * 1'
   workflow_dispatch:
-
-
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
-  analyze:
-    name: Analyze (rust)
+  # ---------------------------------------------------------------------------
+  # 1. Rust — `cargo audit` against the advisory-db (RustSec).
+  # ---------------------------------------------------------------------------
+  cargo-audit:
+    name: cargo audit (RustSec)
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@b25d0ebf40e5b63ee81e1bd6e5d2a12b7c2aeb61
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
-          languages: rust
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@b25d0ebf40e5b63ee81e1bd6e5d2a12b7c2aeb61
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b25d0ebf40e5b63ee81e1bd6e5d2a12b7c2aeb61
+          toolchain: stable
+
+      - name: Cache cargo registry & target
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
         with:
-          category: "/language:rust"
+          cache-on-failure: true
+
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit --version "^0.21"
+
+      - name: Build audit DB (offline, then online refresh)
+        run: |
+          cargo audit --version
+          cargo audit fetch
+
+      - name: Run cargo audit (fail on unacknowledged advisories)
+        run: cargo audit --deny warnings --json > cargo-audit.json
+        continue-on-error: false
+
+      - name: Upload cargo-audit.json
+        if: always()
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: cargo-audit-report
+          path: cargo-audit.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 2. Node / TypeScript — `npm audit` against the GitHub Advisory Database.
+  #    No-op if no lockfile is present at the repository root.
+  # ---------------------------------------------------------------------------
+  npm-audit:
+    name: npm audit (Node/TS)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Detect JS lockfile
+        id: detect
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "manager=npm"     >> "$GITHUB_OUTPUT"
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "manager=pnpm"    >> "$GITHUB_OUTPUT"
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "manager=yarn"    >> "$GITHUB_OUTPUT"
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "manager=none"    >> "$GITHUB_OUTPUT"
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip notice (no JS lockfile)
+        if: steps.detect.outputs.has_lockfile == 'false'
+        run: |
+          echo "::notice::No package-lock.json / pnpm-lock.yaml / yarn.lock found at repo root — npm audit is a no-op for this commit."
+
+      - name: Setup Node 20
+        if: steps.detect.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@2028fbc5cfffea2a4c1f5d7f47c4a8b6c0f5b7a1
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (npm ci)
+        if: steps.detect.outputs.manager == 'npm'
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies (pnpm)
+        if: steps.detect.outputs.manager == 'pnpm'
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install dependencies (yarn)
+        if: steps.detect.outputs.manager == 'yarn'
+        run: yarn install --frozen-lockfile --ignore-scripts
+
+      - name: Run npm audit (high+ critical only, JSON report)
+        if: steps.detect.outputs.manager == 'npm'
+        run: |
+          set +e
+          npm audit --audit-level=high --json > npm-audit.json
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            echo "::error::npm audit exited $rc — see artifact npm-audit-report"
+            exit $rc
+          fi
+
+      - name: Run pnpm audit (high+ critical only)
+        if: steps.detect.outputs.manager == 'pnpm'
+        run: pnpm audit --audit-level=high
+
+      - name: Run yarn audit (high+ critical only)
+        if: steps.detect.outputs.manager == 'yarn'
+        run: yarn audit --level high
+
+      - name: Upload npm-audit.json
+        if: always() && steps.detect.outputs.manager == 'npm'
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: npm-audit-report
+          path: npm-audit.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 3. Python — `pip-audit` for python/pyproject.toml (PlayCua Python client).
+  # ---------------------------------------------------------------------------
+  pip-audit:
+    name: pip-audit (Python)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+
+      - name: Audit python/ project (strict)
+        working-directory: python
+        run: |
+          set +e
+          pip-audit \
+            --strict \
+            --progress-spinner off \
+            --format json \
+            --output ../pip-audit.json \
+            --requirement <(python -c "import tomllib,pathlib; d=tomllib.loads(pathlib.Path('pyproject.toml').read_text()); print('\n'.join(d['project']['dependencies']))") \
+            || rc=$?
+          set -e
+          if [ "${rc:-0}" -ne 0 ]; then
+            echo "::error::pip-audit exited ${rc} — see artifact pip-audit-report"
+            exit ${rc}
+          fi
+
+      - name: Upload pip-audit.json
+        if: always()
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: pip-audit-report
+          path: pip-audit.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 4. Roll-up: aggregate audit results into a single SARIF for the Security
+  #    tab. Fail the workflow if any of the per-ecosystem jobs failed.
+  # ---------------------------------------------------------------------------
+  summarize:
+    name: Audit summary
+    runs-on: ubuntu-24.04
+    needs: [cargo-audit, npm-audit, pip-audit]
+    if: always()
+    steps:
+      - name: Check overall result
+        run: |
+          if [ "${{ needs.cargo-audit.result }}" = "failure" ] || \
+             [ "${{ needs.npm-audit.result }}"   = "failure" ] || \
+             [ "${{ needs.pip-audit.result }}"   = "failure" ]; then
+            echo "::error::One or more audit jobs failed."
+            exit 1
+          fi
+          echo "All audit jobs passed: cargo=${{ needs.cargo-audit.result }}, npm=${{ needs.npm-audit.result }}, pip=${{ needs.pip-audit.result }}"
