@@ -3,7 +3,7 @@ name = "playcua-integration"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "PlayCua integration crate wiring pheno-errors, pheno-tracing, and pheno-config"
+description = "PlayCua integration crate wiring pheno-errors, pheno-tracing, and pheno-config (now via Configra per ADR-031)"
 
 # Standalone crate — not a member of the PlayCua workspace
 [workspace]
@@ -11,7 +11,13 @@ description = "PlayCua integration crate wiring pheno-errors, pheno-tracing, and
 [dependencies]
 pheno-errors = { path = "../../../pheno-errors" }
 pheno-tracing = { path = "../../../pheno-tracing" }
+# App-specific runtime config (URL, DB_PATH, feature flags, env-prefix loader).
+# Migrated into Configra per ADR-031; the crate identity is preserved verbatim.
 pheno-config = { path = "../../../Configra/crates/pheno-config" }
+# Configra meta-config substrate — source of truth for substrate defaults
+# (default_port, default_log_level, db_path_template, idempotency TTLs,
+# watcher intervals). New direct dep added per ADR-031 / ADR-035 migration.
+configra-config = { path = "../../../Configra/crates/configra-config" }
 tracing = "0.1"
 
 [dev-dependencies]
