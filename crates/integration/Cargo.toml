@@ -11,7 +11,7 @@ description = "PlayCua integration crate wiring pheno-errors, pheno-tracing, and
 [dependencies]
 pheno-errors = { path = "../../../pheno-errors" }
 pheno-tracing = { path = "../../../pheno-tracing" }
-pheno-config = { path = "../../../pheno-config" }
+pheno-config = { path = "../../../Configra/crates/pheno-config" }
 tracing = "0.1"
 
 [dev-dependencies]
