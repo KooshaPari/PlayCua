@@ -14,10 +14,13 @@ pheno-tracing = { path = "../../../pheno-tracing" }
 # App-specific runtime config (URL, DB_PATH, feature flags, env-prefix loader).
 # Migrated into Configra per ADR-031; the crate identity is preserved verbatim.
 pheno-config = { path = "../../../Configra/crates/pheno-config" }
-# Configra meta-config substrate — source of truth for substrate defaults
-# (default_port, default_log_level, db_path_template, idempotency TTLs,
-# watcher intervals). New direct dep added per ADR-031 / ADR-035 migration.
-configra-config = { path = "../../../Configra/crates/configra-config" }
+# Configra substrate — generic JSON/TOML file loaders (renamed from
+# configra-config during L5-110 substrate audit, ADR-031 follow-up).
+# New direct dep added per ADR-031 / ADR-035 migration gates.
+phenotype-config-loader = { path = "../../../Configra/crates/phenotype-config-loader" }
 tracing = "0.1"
 
 [dev-dependencies]
+# `app_loads_from_json_file` and `app_loads_from_toml_file` write
+# fixture files via NamedTempFile for the file-loader tests.
+tempfile = "3"

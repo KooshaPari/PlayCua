@@ -1,21 +1,20 @@
-use configra_config::ConfigraConfig;
 use pheno_config::Config;
 use pheno_errors::AppError;
+use phenotype_config_loader::{load_json, load_toml};
+use std::path::Path;
 
 /// The canonical PlayCua application harness.
 ///
 /// Wires together the three pheno-* foundation crates plus the Configra
 /// substrate per ADR-031:
 ///
-/// - `configra-config` (from `KooshaPari/Configra`) for substrate-level
-///   defaults (default port, default log level, db path template,
-///   idempotency TTLs, watcher intervals). Loaded from `CONFIGRA_*`
-///   environment variables when available, otherwise from hardcoded
-///   defaults documented in the Configra workspace.
-/// - `pheno-config` for app-specific runtime config (URL, DB_PATH,
-///   feature flags). Loaded from `PLAYCUA_*` env vars. The crate
-///   itself is now published from the Configra workspace per ADR-031,
-///   so this dependency points at `Configra/crates/pheno-config`.
+/// - `pheno-config` (now in `KooshaPari/Configra` per ADR-031) for
+///   app-specific runtime config (URL, DB_PATH, feature flags) and
+///   the env-prefix loader (`PLAYCUA_*` vars).
+/// - `phenotype-config-loader` (also in `KooshaPari/Configra`,
+///   renamed from `configra-config` during the L5-110 substrate
+///   audit) for typed JSON/TOML file loading when a config file is
+///   supplied. Falls through to env-only when no file is provided.
 /// - `pheno-tracing` for structured logging initialization.
 /// - `pheno-errors` for canonical error handling.
 #[derive(Debug, Clone)]
@@ -23,31 +22,21 @@ pub struct PlayCuaApp {
     /// The loaded app-specific runtime configuration
     /// (URL, port, log level, db_path, feature flags).
     pub config: Config,
-    /// The Configra substrate defaults — port/log-level/db-template
-    /// source-of-truth, consumed at construction time.
-    pub substrate: ConfigraConfig,
+    /// The path to the config file used to load this app's config,
+    /// if any. `None` means env-only loading was used.
+    pub config_source: Option<std::path::PathBuf>,
 }
 
 impl PlayCuaApp {
     /// Creates a new `PlayCuaApp` by loading configuration from environment
-    /// variables (`CONFIGRA_*` for substrate defaults, `PLAYCUA_*` for
-    /// app-specific runtime values) and initializing the global tracing
-    /// subscriber.
+    /// variables with the `PLAYCUA` prefix and initializing the global
+    /// tracing subscriber.
     ///
     /// # Errors
     ///
     /// Returns `AppError::Domain` when config loading fails, or
     /// `AppError::Storage` for I/O-related failures.
     pub fn new() -> Result<Self, AppError> {
-        // Substrate defaults from Configra (the ADR-031 canonical name).
-        // `from_env` reads `CONFIGRA_*` vars; missing/invalid vars fall
-        // back to the documented defaults (never fails — see
-        // `configra_config::ConfigraConfig::from_env`).
-        let substrate = ConfigraConfig::from_env();
-
-        // App-specific runtime config (URL, DB_PATH, feature flags)
-        // still flows through `pheno_config` — the app-level concerns
-        // that Configra doesn't model.
         let config =
             pheno_config::load_from_env("PLAYCUA").map_err(|e| AppError::domain(e.to_string()))?;
 
@@ -58,22 +47,50 @@ impl PlayCuaApp {
             port = config.port,
             log_level = %config.log_level,
             db_path = %config.db_path,
-            substrate_default_port = substrate.service.default_port,
-            substrate_default_log_level = %substrate.service.default_log_level,
-            "PlayCuaApp initialized"
+            "PlayCuaApp initialized from env"
         );
 
-        Ok(Self { config, substrate })
+        Ok(Self {
+            config,
+            config_source: None,
+        })
     }
 
-    /// Creates a `PlayCuaApp` from an explicitly provided config.
+    /// Creates a `PlayCuaApp` from a JSON or TOML config file using the
+    /// Configra `phenotype-config-loader` substrate (ADR-031, L5-110).
     ///
-    /// Substrate defaults come from `ConfigraConfig::default()` so that
-    /// callers can introspect the substrate settings without going
-    /// through the env. Tracing is still initialized via
-    /// `pheno-tracing::init()`.
-    pub fn with_config(config: Config) -> Self {
-        let substrate = ConfigraConfig::default();
+    /// The file extension (`.json` or `.toml`) selects the parser via
+    /// `phenotype_config_loader::load_json` / `load_toml`. Other
+    /// extensions return `AppError::Domain`.
+    ///
+    /// Tracing is still initialized via `pheno-tracing::init()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AppError::Domain` for parse errors or unsupported
+    /// extensions; `AppError::Storage` for I/O failures.
+    pub fn from_file(path: &Path) -> Result<Self, AppError> {
+        let config: Config = match path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+        {
+            Some("json") => load_json::<Config>(path)
+                .map_err(|e| AppError::domain(format!("json load: {e}")))?,
+            Some("toml") => load_toml::<Config>(path)
+                .map_err(|e| AppError::domain(format!("toml load: {e}")))?,
+            Some(other) => {
+                return Err(AppError::domain(format!(
+                    "unsupported config file extension: `.{other}` (expected `.json` or `.toml`)"
+                )));
+            }
+            None => {
+                return Err(AppError::domain(
+                    "config file has no extension (expected `.json` or `.toml`)".to_owned(),
+                ));
+            }
+        };
 
         pheno_tracing::init();
 
@@ -82,12 +99,34 @@ impl PlayCuaApp {
             port = config.port,
             log_level = %config.log_level,
             db_path = %config.db_path,
-            substrate_default_port = substrate.service.default_port,
-            substrate_default_log_level = %substrate.service.default_log_level,
+            config_source = %path.display(),
+            "PlayCuaApp initialized from file"
+        );
+
+        Ok(Self {
+            config,
+            config_source: Some(path.to_path_buf()),
+        })
+    }
+
+    /// Creates a `PlayCuaApp` from an explicitly provided config.
+    ///
+    /// Tracing is still initialized via `pheno-tracing::init()`.
+    pub fn with_config(config: Config) -> Self {
+        pheno_tracing::init();
+
+        tracing::info!(
+            url = %config.url,
+            port = config.port,
+            log_level = %config.log_level,
+            db_path = %config.db_path,
             "PlayCuaApp initialized with explicit config"
         );
 
-        Self { config, substrate }
+        Self {
+            config,
+            config_source: None,
+        }
     }
 
     /// Placeholder run method — a no-op that returns `Ok(())`.
@@ -103,6 +142,7 @@ impl PlayCuaApp {
 mod tests {
     use super::*;
     use pheno_config::ConfigBuilder;
+    use std::io::Write;
 
     /// Helper: build a canonical Config suitable for unit tests
     /// without touching the environment.
@@ -135,11 +175,8 @@ mod tests {
             app.config.feature_flags,
             vec!["beta".to_string(), "gamma".to_string()]
         );
-
-        // The Configra substrate defaults are now visible on the app
-        // struct (ADR-031 migration verification).
-        assert_eq!(app.substrate.service.default_port, 8080);
-        assert_eq!(app.substrate.service.default_log_level, "info");
+        // Env-loaded apps have no file source.
+        assert!(app.config_source.is_none());
     }
 
     #[test]
@@ -150,15 +187,7 @@ mod tests {
 
         let app = PlayCuaApp::with_config(config.clone());
         assert_eq!(app.config, config);
-
-        // Substrate defaults are sourced from `ConfigraConfig::default()`
-        // in `with_config` — verify they match the documented values.
-        assert_eq!(app.substrate.service.default_port, 8080);
-        assert_eq!(app.substrate.service.default_log_level, "info");
-        assert_eq!(
-            app.substrate.service.db_path_template,
-            "/var/lib/{name}.db"
-        );
+        assert!(app.config_source.is_none());
     }
 
     #[test]
@@ -168,27 +197,76 @@ mod tests {
         assert!(app.run().is_ok());
     }
 
-    /// Migration test (ADR-031): verify that `ConfigraConfig::default()`
-    /// is reachable through `PlayCuaApp::with_config` and that its
-    /// documented defaults are exposed on the app struct.
+    /// Migration test (ADR-031, L5-110): verify that the renamed
+    /// `phenotype-config-loader` substrate can be used to load a
+    /// `Config` from a JSON file on disk.
     #[test]
-    fn substrate_defaults_visible_on_app() {
-        let app = PlayCuaApp::with_config(sample_config());
+    fn app_loads_from_json_file() {
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        let path = tmp.path().with_extension("json");
+        writeln!(
+            tmp.as_file_mut(),
+            r#"{{
+                "url": "http://localhost:7777",
+                "port": 7777,
+                "log_level": "warn",
+                "db_path": "/var/lib/playcua-file.json.db",
+                "feature_flags": ["delta", "epsilon"]
+            }}"#
+        )
+        .expect("write json");
+        drop(tmp);
 
-        // Service defaults
-        assert_eq!(app.substrate.service.default_port, 8080);
-        assert_eq!(app.substrate.service.default_log_level, "info");
+        // We wrote to a path with .json extension. Reload from there.
+        let app = PlayCuaApp::from_file(&path).expect("app should load from json file");
+        assert_eq!(app.config.url, "http://localhost:7777");
+        assert_eq!(app.config.port, 7777);
+        assert_eq!(app.config.log_level, "warn");
+        assert_eq!(app.config.db_path, "/var/lib/playcua-file.json.db");
         assert_eq!(
-            app.substrate.service.db_path_template,
-            "/var/lib/{name}.db"
+            app.config.feature_flags,
+            vec!["delta".to_string(), "epsilon".to_string()]
         );
+        assert_eq!(app.config_source.as_deref(), Some(path.as_path()));
+    }
 
-        // Idempotency defaults
-        assert_eq!(app.substrate.idempotency.default_ttl_secs, 86_400);
-        assert_eq!(app.substrate.idempotency.default_max_retries, 3);
+    /// Migration test (ADR-031, L5-110): verify TOML file loading
+    /// via `phenotype-config-loader::load_toml`.
+    #[test]
+    fn app_loads_from_toml_file() {
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        let path = tmp.path().with_extension("toml");
+        writeln!(
+            tmp.as_file_mut(),
+            r#"
+url = "http://localhost:6666"
+port = 6666
+log_level = "trace"
+db_path = "/var/lib/playcua-file.toml.db"
+feature_flags = ["zeta"]
+"#
+        )
+        .expect("write toml");
+        drop(tmp);
 
-        // Watcher defaults
-        assert_eq!(app.substrate.watcher.poll_interval_ms, 1000);
-        assert!(app.substrate.watcher.enabled);
+        let app = PlayCuaApp::from_file(&path).expect("app should load from toml file");
+        assert_eq!(app.config.url, "http://localhost:6666");
+        assert_eq!(app.config.port, 6666);
+        assert_eq!(app.config.log_level, "trace");
+        assert_eq!(app.config.db_path, "/var/lib/playcua-file.toml.db");
+        assert_eq!(app.config.feature_flags, vec!["zeta".to_string()]);
+    }
+
+    /// Negative test: unsupported extension should produce a domain
+    /// error, not panic.
+    #[test]
+    fn from_file_unsupported_extension_errors() {
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        let path = tmp.path().with_extension("yaml");
+        writeln!(tmp.as_file_mut(), "url: not-relevant").expect("write");
+        drop(tmp);
+
+        let result = PlayCuaApp::from_file(&path);
+        assert!(result.is_err());
     }
 }
