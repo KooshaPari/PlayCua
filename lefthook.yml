@@ -1,0 +1,38 @@
+# Lefthook config for PlayCua
+# Per phenotype-org decision (AGENTS.md lefthook preference over pre-commit).
+# Install one-time, then auto-runs on every git hook: see https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    check-yaml:
+      glob: "*.y{a,}ml"
+      run: cmd //c "powershell -Command \"Get-Content -Path '{staged_files}' | ConvertFrom-Yaml | Out-Null\""
+    check-toml:
+      glob: "*.toml"
+      run: cargo toml-check {staged_files} || true
+    check-merge-conflict:
+      glob: "*"
+      run: cmd //c "powershell -Command \"Select-String -Path '{staged_files}' -Pattern '^(<{7}|={7}|>{7})' -Quiet | ForEach-Object { exit 1 }\""
+
+pre-push:
+  parallel: true
+  commands:
+    cargo-fmt:
+      run: cargo fmt --all -- --check
+    cargo-clippy:
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    cargo-deny:
+      run: cargo deny check
+    cargo-test:
+      run: cargo test --workspace --locked --all-features
+    cargo-audit:
+      run: cargo audit
+    cargo-doc:
+      run: cargo doc --workspace --no-deps --document-private-items
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        powershell -NoProfile -Command "$msg = Get-Content -Path '{1}' -Raw; if ($msg -notmatch '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .+') { exit 1 }"
