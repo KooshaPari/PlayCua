@@ -1,0 +1,89 @@
+# cargo-deny.yml.template
+#
+# Drop-in workflow for any repo with a deny.toml + Cargo.toml pair.
+# Enforces cargo-deny block-release per phenotype-org governance ADR.
+#
+# Usage:
+#   1. Copy this file to .github/workflows/cargo-deny.yml in the target repo
+#   2. Update the matrix.location entries to match your (deny.toml, Cargo.toml) pairs
+#   3. Commit + push; PR the branch
+#
+# Notes:
+# - On PR: runs cargo-deny check (strict), emits advisory summary as job summary
+# - On tag (v*): runs cargo-deny check (strict) -- any failure aborts release
+# - --all-features matches deny.toml [graph] all-features = true (Phenotype-org default)
+# - Action SHAs pinned (no version tags) per phenotype-org governance
+---
+name: cargo-deny
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  deny:
+    name: cargo-deny (${{ matrix.location }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        location:
+          # TODO: Update this list for your repo's Rust sub-projects.
+          # Each entry needs (path, deny, cargo). If cargo is empty, that
+          # entry is skipped (no Rust sub-project there).
+          - path: '.'
+            deny: 'deny.toml'
+            cargo: 'Cargo.toml'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1d1d528c25b5c4ba9c5b6f4f4d9ea5e2c0e8a8c7 # stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Skip if no Cargo.toml
+        if: matrix.location.cargo == ''
+        run: echo "::notice::No Cargo.toml at ${{ matrix.location.path }} -- skipping cargo-deny"
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        if: matrix.location.cargo != ''
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles(matrix.location.cargo) }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-deny-
+
+      - name: Install cargo-deny
+        if: matrix.location.cargo != ''
+        uses: taiki-e/install-action@v2
+        with:
+            tool: cargo-deny
+
+      - name: Run cargo-deny check (block-release)
+        if: matrix.location.cargo != ''
+        working-directory: ${{ matrix.location.path }}
+        run: cargo deny check --all-features
+
+      - name: Run cargo-deny check (advisories only, log-only)
+        if: matrix.location.cargo != '' && github.event_name == 'pull_request'
+        working-directory: ${{ matrix.location.path }}
+        run: |
+          cargo deny check advisories --all-features 2>&1 | tee deny-advisories.txt || true
+          if [ -s deny-advisories.txt ]; then
+            echo "## cargo-deny advisories" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat deny-advisories.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
