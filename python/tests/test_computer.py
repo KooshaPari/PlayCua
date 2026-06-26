@@ -1,5 +1,5 @@
 """
-Tests for the bare_cua Python bindings.
+Tests for the laycua Python bindings.
 
 Uses a mock subprocess that echoes pre-canned JSON-RPC responses so no real
 native binary is required. Tests cover:
@@ -72,9 +72,9 @@ def mock_server_path(tmp_path: Path) -> Path:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "python"))
 
 try:
-    from bare_cua import Computer  # type: ignore
+    from laycua import Computer  # type: ignore
 except ImportError:
-    pytest.skip("bare_cua package not installed — skipping integration tests", allow_module_level=True)
+    pytest.skip("laycua package not installed — skipping integration tests", allow_module_level=True)
 
 
 # ---------------------------------------------------------------------------
