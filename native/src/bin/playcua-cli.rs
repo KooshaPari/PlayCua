@@ -22,6 +22,7 @@ use std::process::Stdio;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -218,10 +219,12 @@ async fn main() -> Result<()> {
         None => daemon_call(&cli.daemon, &method, params).await?,
     };
     if code != 0 {
-        if let Some(err) = json.get("error") {
-            eprintln!("RPC error: {err}");
-        }
-        std::process::exit(1);
+        let msg = json
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown RPC error");
+        CliError::rpc(code, msg).exit();
     }
     let result = json.get("result").cloned().unwrap_or(Value::Null);
     // Print compact JSON for non-screenshot cases; for screenshot, write the
@@ -236,8 +239,11 @@ async fn main() -> Result<()> {
                     .context("screenshot base64 decode failed")?;
                 std::io::stdout().write_all(&bytes)?;
             } else {
-                eprintln!("no `data` field in result: {result}");
-                std::process::exit(1);
+                CliError::rpc(
+                    -32603,
+                    &format!("screenshot response missing `data` field: {result}"),
+                )
+                .exit();
             }
         }
         _ => {
@@ -338,4 +344,83 @@ async fn base64_encode_file(path: &PathBuf) -> Result<String> {
         .with_context(|| format!("read {} failed", path.display()))?;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
     Ok(BASE64.encode(&bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Structured CLI error (L14 remediation: typed client-side error envelope)
+// ---------------------------------------------------------------------------
+
+/// Structured CLI error that prints a well-formed JSON-RPC error to stderr
+/// and exits with the corresponding code.
+///
+/// This replaces the previous `eprintln!("RPC error: {err}")` pattern so that
+/// tooling consuming stderr can parse structured error payloads instead of
+/// free-form text.
+#[derive(Debug, Serialize)]
+struct CliError {
+    code: i32,
+    message: String,
+}
+
+impl CliError {
+    /// Construct a JSON-RPC-style error.
+    fn rpc(code: i32, message: &str) -> Self {
+        Self {
+            code,
+            message: message.to_string(),
+        }
+    }
+
+    /// Print the error as a one-line JSON object to stderr, then exit(1).
+    fn exit(&self) -> ! {
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": self.code,
+                "message": self.message,
+            }
+        });
+        let line = serde_json::to_string(&payload).unwrap_or_else(|_| {
+            format!(
+                r#"{{"jsonrpc":"2.0","error":{{"code":{},"message":"{}"}}}}"#,
+                self.code, self.message
+            )
+        });
+        eprintln!("{line}");
+        std::process::exit(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_error_constructs_rpc_error() {
+        let err = CliError::rpc(-32603, "test error");
+        assert_eq!(err.code, -32603);
+        assert_eq!(err.message, "test error");
+    }
+
+    #[test]
+    fn cli_error_serializes_to_json() {
+        let err = CliError::rpc(-32700, "parse error");
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], -32700);
+        assert_eq!(json["message"], "parse error");
+    }
+
+    #[test]
+    fn cli_error_json_rpc_format() {
+        // Verify the error produces valid JSON-RPC shaped output.
+        let err = CliError::rpc(-32601, "method not found");
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32601,
+                "message": "method not found",
+            }
+        });
+        assert_eq!(serde_json::to_value(&err).unwrap(), payload["error"]);
+    }
 }
