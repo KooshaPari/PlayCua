@@ -1,5 +1,5 @@
 [workspace]
-members = ["native"]
+members = ["native", "crates/pheno-errors", "crates/pheno-tracing", "crates/pheno-flags"]
 resolver = "2"
 
 [workspace.package]
@@ -24,6 +24,18 @@ blake3 = "=1.8.5"
 fast_image_resize = "6"
 enigo = { version = "0.6", features = [] }
 xcap = "0.9"
+
+# pheno-* fleet crates (L5 #81 PlayCua full integration).
+#   - pheno-errors:  canonical AppError type used by the top-level
+#                    `Result`/`main` signature.
+#   - pheno-tracing: JSON-to-stderr tracing init (replaces the
+#                    hand-rolled `tracing_subscriber::fmt()` chain
+#                    that lived in main.rs before this change).
+#   - pheno-flags:   env-driven boolean feature flags (loaded from
+#                    `PLAYCUA_*` env vars at startup).
+pheno-errors  = { path = "crates/pheno-errors" }
+pheno-tracing = { path = "crates/pheno-tracing" }
+pheno-flags   = { path = "crates/pheno-flags" }
 
 # MCP server (rmcp 1.x — official Model Context Protocol Rust SDK)
 rmcp = { version = "1.7", default-features = false, features = [
