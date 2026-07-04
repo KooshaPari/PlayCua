@@ -55,6 +55,11 @@ allow = [
     "0BSD",
     "Unlicense",
     "NCSA",
+    # CDLA-Permissive-2.0 — required by `webpki-root-certs` (1.0.7) and
+    # `webpki-roots` (1.0.8). These crates bundle Mozilla's CA root store;
+    # the CDLA-Permissive-2.0 license is functionally equivalent to MIT for
+    # source-level redistribution. Approved by sapanw-A 2026-07-04.
+    "CDLA-Permissive-2.0",
     # Note: "Zlib-Acknowledgement" is **not** a valid SPDX identifier
     # (cargo-deny 0.19 fails to deserialize this config with
     # `error[custom]: unknown term`). It was added speculatively; the
