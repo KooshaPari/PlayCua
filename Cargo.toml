@@ -33,9 +33,9 @@ xcap = "0.9"
 #                    that lived in main.rs before this change).
 #   - pheno-flags:   env-driven boolean feature flags (loaded from
 #                    `PLAYCUA_*` env vars at startup).
-pheno-errors  = { path = "crates/pheno-errors" }
-pheno-tracing = { path = "crates/pheno-tracing" }
-pheno-flags   = { path = "crates/pheno-flags" }
+pheno-errors  = { path = "crates/pheno-errors", version = "*" }
+pheno-tracing = { path = "crates/pheno-tracing", version = "*" }
+pheno-flags   = { path = "crates/pheno-flags", version = "*" }
 
 # MCP server (rmcp 1.x — official Model Context Protocol Rust SDK)
 rmcp = { version = "1.7", default-features = false, features = [
