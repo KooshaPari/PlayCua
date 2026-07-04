@@ -37,6 +37,13 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          # Pre-existing CI bug fix (sapanw-A / orchestrator-approved): the
+          # toolchain step was being invoked without the required `toolchain`
+          # input, causing the action to abort with `'toolchain' is a required
+          # input` *before* cargo-deny ever ran. See run 28660387637 log
+          # step 4 (`Install Rust toolchain`, conclusion=failure).
+          toolchain: stable
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
