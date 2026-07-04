@@ -55,7 +55,12 @@ allow = [
     "0BSD",
     "Unlicense",
     "NCSA",
-    "Zlib-Acknowledgement",
+    # Note: "Zlib-Acknowledgement" is **not** a valid SPDX identifier
+    # (cargo-deny 0.19 fails to deserialize this config with
+    # `error[custom]: unknown term`). It was added speculatively; the
+    # `Zlib` SPDX identifier above is the canonical short form and is
+    # what `zlib-acknowledgement` crates actually resolve to in the
+    # askalono / clearlydefined database. Removed by sapanw-A.
 ]
 # `confidence-threshold = 0.8` matches the upstream recommended default:
 # a license must be detected with >=80% SPDX-similarity to count as
