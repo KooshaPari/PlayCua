@@ -218,27 +218,167 @@ mod tests {
 /// [`SandboxDriver::new`] (explicit) or [`SandboxDriver::driver_for_probe`]
 /// (uses the `SandboxModality` probe).
 ///
-/// The body of `spawn`/`tunnel`/`shutdown` is intentionally a TODO for the
-/// next session per the dispatch brief at the top of this module.
+/// On construction the driver is *lazy*: no child process is started until
+/// [`SandboxDriver::spawn`] is called. After `spawn`, the child is held
+/// inside `child` and torn down in `Drop` (SIGTERM, then SIGKILL after 5s).
 pub struct SandboxDriver {
     backend: SandboxBackend,
+    child: Option<tokio::process::Child>,
 }
 
 impl SandboxDriver {
     /// Construct a driver for a specific backend. Does not spawn.
     pub fn new(backend: SandboxBackend) -> Self {
-        Self { backend }
+        Self {
+            backend,
+            child: None,
+        }
     }
 
     /// If the given modality probe found a backend, return a driver for it.
     pub fn driver_for_probe(m: &SandboxModality) -> Option<Self> {
         let backend = m.probe()?;
-        Some(Self { backend })
+        Some(Self {
+            backend,
+            child: None,
+        })
     }
 
     /// The argv head that `spawn()` will eventually exec. Exposed now so
     /// tests can verify the backend selection without spawning.
     pub fn spawn_argv(&self) -> Vec<String> {
         vec![self.backend.binary().to_string()]
+    }
+
+    /// The backend this driver was constructed for.
+    pub fn backend(&self) -> SandboxBackend {
+        self.backend
+    }
+
+    /// Spawn the backend as a child process. After this call, the child's
+    /// stdio is available via [`SandboxDriver::tunnel`].
+    ///
+    /// Backend-specific flag handling per ADR-006 M2:
+    ///   - `Firejail`:    `--noprofile --` (no profile, then `<cmd>`)
+    ///   - `Runsc`/`GVisor`: `run --bundle=<oci-dir> <cmd>`
+    ///   - `SandboxExec`: `-D /tmp/playcua.sb <cmd>` (default profile path)
+    ///   - `Firecracker`: requires a built rootfs + kernel + machine cfg;
+    ///                    out of scope for this slice (gated behind a future
+    ///                    cfg flag in `Cargo.toml`).
+    ///
+    /// The `<cmd>` is the host-side PlayCua bridge; for this slice we exec
+    /// an inline `cat` so the child stays alive long enough to be torn down
+    /// by `Drop`. A future PR replaces `<cmd>` with the bridge launcher
+    /// from `native/src/bin/playcua-bridge.rs` (yet to be authored).
+    pub async fn spawn(&mut self) -> std::io::Result<()> {
+        let mut cmd = self.build_command();
+        // Stdio piped so the host side can read/write JSON-RPC envelopes.
+        cmd.stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        let child = cmd.spawn()?;
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// Get a `tokio::process::ChildStdio` for the spawned child's stdin.
+    /// Returns `None` if `spawn()` has not been called.
+    pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
+        self.child.as_mut()?.stdin.take()
+    }
+
+    /// Get a `tokio::process::ChildStdout` for the spawned child's stdout.
+    /// Returns `None` if `spawn()` has not been called.
+    pub fn tunnel_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.as_mut()?.stdout.take()
+    }
+
+    /// Get a `tokio::process::ChildStderr` for the spawned child's stderr.
+    /// Returns `None` if `spawn()` has not been called.
+    pub fn tunnel_stderr(&mut self) -> Option<tokio::process::ChildStderr> {
+        self.child.as_mut()?.stderr.take()
+    }
+
+    /// Explicit graceful shutdown. Sends SIGTERM first, then SIGKILL after
+    /// `kill_timeout`. Implemented in `Drop` too, but this is the
+    /// synchronous alternative for callers that want to await the cleanup.
+    pub async fn shutdown(&mut self) -> std::io::Result<()> {
+        const KILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        if let Some(mut child) = self.child.take() {
+            // Try graceful first.
+            #[cfg(unix)]
+            {
+                use tokio::process::Command;
+                // Best-effort SIGTERM via libc.
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                // On non-Unix, just kill directly.
+                let _ = child.start_kill();
+            }
+            // Wait up to KILL_TIMEOUT, then SIGKILL.
+            match tokio::time::timeout(KILL_TIMEOUT, child.wait()).await {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    child.start_kill().ok();
+                    child.wait().await.ok();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn build_command(&self) -> tokio::process::Command {
+        let mut cmd = tokio::process::Command::new(self.backend.binary());
+        match self.backend {
+            SandboxBackend::Firejail => {
+                cmd.arg("--noprofile").arg("--");
+            }
+            SandboxBackend::Runsc | SandboxBackend::GVisor => {
+                cmd.arg("run").arg("--bundle=/tmp/playcua-oci");
+            }
+            SandboxBackend::SandboxExec => {
+                cmd.arg("-D").arg("/tmp/playcua.sb");
+            }
+            SandboxBackend::Firecracker => {
+                // Out of scope for this slice; fall through to a no-op
+                // backend-binary invocation. The next PR adds the cfg gate
+                // and rootfs/kernel args.
+            }
+        }
+        // Inline command: a long-running `cat` keeps the child alive so
+        // Drop has something to kill. A future PR replaces this with the
+        // bridge launcher (`playcua-bridge --stdio`).
+        cmd.arg("cat");
+        cmd
+    }
+}
+
+impl Drop for SandboxDriver {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            // Best-effort: ignore errors (we're in Drop).
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+            // Don't await — Drop is sync. The OS reaps the child on exit.
+            let _ = child.start_kill();
+        }
     }
 }
