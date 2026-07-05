@@ -85,7 +85,7 @@ mod tests {
         // exec will fail at App construction — that's the expected modality
         // behavior (registry::select returns the Wsl entry only on Windows
         // when `is_available` returns true).
-        let d = WslDriver::new();
+        let d = WslDriver::new("Ubuntu");
         let argv = d.spawn_argv();
         assert_eq!(argv.first().map(String::as_str), Some("wsl.exe"));
     }
@@ -157,26 +157,119 @@ mod tests {
 
 /// Lazy spawn-and-tunnel handle for `wsl.exe`. Windows-only at runtime;
 /// compiles on all targets so unit tests can exercise the API shape.
-pub struct WslDriver;
+///
+/// Implements M4 per ADR-006: invoke `wsl.exe --distribution <distro>`,
+/// expose the child's stdio so the host can drive the Linux-side PlayCua
+/// bridge (the dispatch-brief's "JSON-RPC envelope over stdio"). Shutdown
+/// is graceful on unix via SIGTERM→SIGKILL; on Windows the kernel's
+/// `TerminateProcess` (via `tokio::process::Child::start_kill`) is the
+/// only graceful equivalent — there is no SIGTERM concept for win32 PIDs
+/// owned by another session.
+pub struct WslDriver {
+    distro: String,
+    child: Option<tokio::process::Child>,
+}
 
 impl WslDriver {
-    /// Construct a driver. Does not spawn.
-    pub fn new() -> Self {
-        Self
+    /// Construct a driver for a specific WSL distribution. Does not spawn.
+    pub fn new(distro: impl Into<String>) -> Self {
+        Self {
+            distro: distro.into(),
+            child: None,
+        }
     }
 
-    /// If WSL is available on this Windows host, return a driver; otherwise None.
+    /// If WSL is available on this host, return a driver for the
+    /// distro in `PLAYCUA_WSL_DISTRO` (default `Ubuntu`); otherwise None.
     pub fn driver_for_probe(m: &WslModality) -> Option<Self> {
-        if m.is_available() {
-            Some(Self)
-        } else {
-            None
+        if !m.is_available() {
+            return None;
         }
+        let distro = std::env::var("PLAYCUA_WSL_DISTRO").unwrap_or_else(|_| "Ubuntu".to_string());
+        Some(Self::new(distro))
     }
 
     /// The argv head that `spawn()` will eventually exec. Exposed now so
     /// tests can verify the binary selection without spawning.
     pub fn spawn_argv(&self) -> Vec<String> {
         vec!["wsl.exe".to_string()]
+    }
+
+    /// Spawn `wsl.exe --distribution <distro>` and store the child. On
+    /// Windows hosts the binary is `wsl.exe`; on non-Windows hosts
+    /// `spawn()` returns an I/O error at the kernel level.
+    pub async fn spawn(&mut self) -> std::io::Result<()> {
+        let mut cmd = tokio::process::Command::new("wsl.exe");
+        cmd.arg("--distribution").arg(&self.distro);
+        // WSL converts stdin from the Windows process into the Linux
+        // foreground process's stdin — keep them piped so the host can
+        // send IPC frames.
+        cmd.stdin(std::process::Stdio::piped());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        let child = cmd.spawn()?;
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// Accessor for the spawned child's stdin. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
+        self.child.as_mut()?.stdin.take()
+    }
+
+    /// Accessor for the spawned child's stdout. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.as_mut()?.stdout.take()
+    }
+
+    /// Accessor for the spawned child's stderr. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stderr(&mut self) -> Option<tokio::process::ChildStderr> {
+        self.child.as_mut()?.stderr.take()
+    }
+
+    /// Explicit graceful shutdown. Windows doesn't expose SIGTERM to
+    /// wsl.exe's children; we rely on `start_kill` (TerminateProcess)
+    /// followed by a wait so the kernel reaps promptly.
+    pub async fn shutdown(&mut self) -> std::io::Result<()> {
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for WslDriver {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+        }
     }
 }

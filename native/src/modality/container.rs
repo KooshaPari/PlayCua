@@ -98,7 +98,7 @@ mod tests {
         // (e.g. "docker", "podman") followed by `run`, so the host shell can
         // exec it directly. We don't actually spawn in tests (would need a
         // real container runtime); just verify the argv shape.
-        let d = ContainerDriver::new(ContainerCli::Docker);
+        let d = ContainerDriver::new(ContainerCli::Docker, "playcua/bridge:latest");
         let argv = d.spawn_argv();
         assert_eq!(argv.first().map(String::as_str), Some("docker"));
         assert_eq!(argv.get(1).map(String::as_str), Some("run"));
@@ -215,29 +215,144 @@ impl<'a> From<&'a str> for ContainerCli {
 
 /// Lazy spawn-and-tunnel handle for a container CLI invocation.
 ///
-/// The body of `spawn`/`tunnel`/`shutdown` is intentionally a TODO for the
-/// next session per the dispatch brief at the top of this module.
+/// Implements M5 per ADR-006: spawn `<cli> run --rm -i --volume <host>:<ctn>
+/// <image> /usr/local/bin/playcua-bridge`, expose stdio so the host can drive
+/// the bridge's JSON-RPC envelope (reusing `native/src/ipc/dispatcher.rs`),
+/// and shut the container down gracefully on `Drop`.
+///
+/// Image selection order:
+/// 1. `PLAYCUA_CONTAINER_IMAGE` env var (e.g. `my-registry.example.com/playcua:dev`)
+/// 2. Default `playcua/bridge:latest`
 pub struct ContainerDriver {
     cli: ContainerCli,
+    image: String,
+    child: Option<tokio::process::Child>,
 }
 
 impl ContainerDriver {
-    /// Construct a driver for a specific CLI. Does not spawn.
-    pub fn new(cli: ContainerCli) -> Self {
-        Self { cli }
+    /// Construct a driver for a specific CLI and image. Does not spawn.
+    pub fn new(cli: ContainerCli, image: impl Into<String>) -> Self {
+        Self {
+            cli,
+            image: image.into(),
+            child: None,
+        }
     }
 
-    /// If the given modality probe found a CLI, return a driver for it.
+    /// If the probe found a container CLI, return a driver for it. The image
+    /// comes from `PLAYCUA_CONTAINER_IMAGE` (default `playcua/bridge:latest`).
     pub fn driver_for_probe(m: &ContainerModality) -> Option<Self> {
         let cli_str = m.probe()?;
-        Some(Self {
-            cli: ContainerCli::from(cli_str),
-        })
+        let image = std::env::var("PLAYCUA_CONTAINER_IMAGE")
+            .unwrap_or_else(|_| "playcua/bridge:latest".to_string());
+        Some(Self::new(ContainerCli::from(cli_str), image))
     }
 
     /// The argv head that `spawn()` will eventually exec. Exposed now so
     /// tests can verify the CLI selection without spawning.
     pub fn spawn_argv(&self) -> Vec<String> {
         vec![self.cli.binary().to_string(), "run".to_string()]
+    }
+
+    /// Spawn `<cli> run --rm -i --volume <host>:<ctn> <image>
+    /// /usr/local/bin/playcua-bridge` and store the child. Stdio is piped
+    /// so the host can drive the JSON-RPC envelope.
+    pub async fn spawn(&mut self) -> std::io::Result<()> {
+        let mut cmd = tokio::process::Command::new(self.cli.binary());
+        cmd.arg("run").arg("--rm").arg("-i");
+        // WINDOWS BRIDGE: On Windows hosts `host` paths need translation
+        // (C:\foo -> /mnt/c/foo) before they can be bind-mounted into the
+        // Linux container. The next session adds a `to_wsl_path` helper;
+        // for now we pass the path verbatim and let the kernel error if
+        // the runtime doesn't accept the Windows form (podman handles it,
+        // docker desktop requires WSL2 anyway).
+        cmd.arg("--volume")
+            .arg(format!("{0}:{0}", std::env::temp_dir().display()))
+            .arg(&self.image)
+            .arg("/usr/local/bin/playcua-bridge");
+        cmd.stdin(std::process::Stdio::piped());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        #[cfg(unix)]
+        {
+            // Detach into own session so Drop's SIGTERM-to-pgid cleans up
+            // the container runtime + child simultaneously.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
+        }
+        let child = cmd.spawn()?;
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// Accessor for the spawned child's stdin. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
+        self.child.as_mut()?.stdin.take()
+    }
+
+    /// Accessor for the spawned child's stdout. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.as_mut()?.stdout.take()
+    }
+
+    /// Accessor for the spawned child's stderr. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stderr(&mut self) -> Option<tokio::process::ChildStderr> {
+        self.child.as_mut()?.stderr.take()
+    }
+
+    /// Explicit graceful shutdown. Sends SIGTERM first, then SIGKILL after
+    /// 5 s. Mirrors the SandboxDriver shutdown semantics.
+    pub async fn shutdown(&mut self) -> std::io::Result<()> {
+        const KILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+            match tokio::time::timeout(KILL_TIMEOUT, child.wait()).await {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    child.start_kill().ok();
+                    child.wait().await.ok();
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Drop for ContainerDriver {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+        }
     }
 }

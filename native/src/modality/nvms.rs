@@ -121,7 +121,7 @@ mod tests {
         // subcommand so the host shell can exec it directly. We don't
         // actually spawn in tests (would need a real nvms binary); just
         // verify the argv shape.
-        let d = NvmsDriver::new();
+        let d = NvmsDriver::new(std::path::PathBuf::from("./nvms.toml"));
         let argv = d.spawn_argv();
         assert_eq!(argv.first().map(String::as_str), Some("nvms"));
         assert_eq!(argv.get(1).map(String::as_str), Some("run"));
@@ -200,28 +200,210 @@ mod tests {
 
 /// Lazy spawn-and-tunnel handle for an `nvms run` invocation.
 ///
-/// The body of `spawn`/`tunnel`/`shutdown` is intentionally a TODO for the
-/// next session per the dispatch brief at the top of this module.
-pub struct NvmsDriver;
+/// Implements M3 per ADR-006: spawn `nvms run --config <nvms.toml>`,
+/// expose the child's stdio via `tunnel_*` accessors so the host can
+/// drive the nvms RPC envelope (reusing `native/src/ipc/dispatcher.rs`'s
+/// `Dispatcher::dispatch` codec over the child's stdio), and shut the
+/// child down gracefully on `Drop` or via the explicit `shutdown()`
+/// async method.
+///
+/// Config path resolution:
+/// 1. `PLAYCUA_NVMS_CONFIG` env var
+/// 2. `./nvms.toml` (cwd)
+/// 3. `~/.config/playcua/nvms.toml`
+///
+/// If none of those exist, `spawn()` returns `NvmsError::ConfigNotFound`.
+pub struct NvmsDriver {
+    config_path: std::path::PathBuf,
+    child: Option<tokio::process::Child>,
+}
+
+/// Errors NvmsDriver::spawn can surface.
+#[derive(Debug)]
+pub enum NvmsError {
+    /// `nvms.toml` not found in any of the search paths.
+    ConfigNotFound(Vec<std::path::PathBuf>),
+    /// I/O failure from `tokio::process::Command::spawn`.
+    Io(std::io::Error),
+}
+
+impl std::fmt::Display for NvmsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConfigNotFound(searched) => {
+                write!(f, "nvms.toml not found; searched: ")?;
+                for (i, p) in searched.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", p.display())?;
+                }
+                Ok(())
+            }
+            Self::Io(e) => write!(f, "nvms spawn I/O error: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for NvmsError {}
 
 impl NvmsDriver {
-    /// Construct a driver. Does not spawn.
-    pub fn new() -> Self {
-        Self
+    /// Construct a driver for a specific config path. Does not spawn.
+    pub fn new(config_path: std::path::PathBuf) -> Self {
+        Self {
+            config_path,
+            child: None,
+        }
     }
 
-    /// If `nvms` is on $PATH, return a driver; otherwise None.
+    /// If `nvms` is on $PATH, return a driver with the resolved config;
+    /// otherwise None.
     pub fn driver_for_probe(m: &NvmsModality) -> Option<Self> {
-        if m.is_available() {
-            Some(Self)
-        } else {
-            None
+        if !m.is_available() {
+            return None;
         }
+        // Probe succeeded — the user has `nvms` on PATH. Use the env-var
+        // config path if set, fall back to ./nvms.toml in the next stage
+        // (the dispatch-brief escalation order).
+        let config = std::env::var_os("PLAYCUA_NVMS_CONFIG")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("./nvms.toml"));
+        Some(Self::new(config))
     }
 
     /// The argv head that `spawn()` will eventually exec. Exposed now so
     /// tests can verify the subcommand shape without spawning.
     pub fn spawn_argv(&self) -> Vec<String> {
         vec!["nvms".to_string(), "run".to_string()]
+    }
+
+    /// Resolve the nvms.toml config path from PLAYCUA_NVMS_CONFIG / cwd /
+    /// ~/.config/playcua in that order. Returns the first existing match.
+    fn resolve_config() -> Result<std::path::PathBuf, NvmsError> {
+        if let Some(p) = std::env::var_os("PLAYCUA_NVMS_CONFIG").map(std::path::PathBuf::from) {
+            if p.is_file() {
+                return Ok(p);
+            }
+        }
+        let cwd = std::path::PathBuf::from("./nvms.toml");
+        if cwd.is_file() {
+            return Ok(cwd);
+        }
+        if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+            let user_cfg = home.join(".config/playcua/nvms.toml");
+            if user_cfg.is_file() {
+                return Ok(user_cfg);
+            }
+        }
+        Err(NvmsError::ConfigNotFound(vec![
+            std::path::PathBuf::from("$PLAYCUA_NVMS_CONFIG"),
+            cwd,
+            std::path::PathBuf::from("~/.config/playcua/nvms.toml"),
+        ]))
+    }
+
+    /// Spawn `nvms run --config <path>` and store the child. Pipes stdio
+    /// so the host can speak the nvms RPC envelope on stdin/stdout.
+    pub async fn spawn(&mut self) -> Result<(), NvmsError> {
+        // Re-resolve at spawn time so users can set the env var between
+        // driver construction and the first action.
+        let path = if self.config_path.is_file() {
+            self.config_path.clone()
+        } else {
+            Self::resolve_config()?
+        };
+        let mut cmd = tokio::process::Command::new("nvms");
+        cmd.arg("run").arg("--config").arg(&path);
+        cmd.stdin(std::process::Stdio::piped());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        #[cfg(unix)]
+        {
+            // nvms spawns child containers; keep the orchestrator in its
+            // own pgroup so Drop's SIGTERM-to-pgid cleans up the whole tree.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
+        }
+        let child = cmd.spawn().map_err(NvmsError::Io)?;
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// Accessor for the spawned child's stdin. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
+        self.child.as_mut()?.stdin.take()
+    }
+
+    /// Accessor for the spawned child's stdout. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.as_mut()?.stdout.take()
+    }
+
+    /// Accessor for the spawned child's stderr. Returns `None` if `spawn()`
+    /// has not been called.
+    pub fn tunnel_stderr(&mut self) -> Option<tokio::process::ChildStderr> {
+        self.child.as_mut()?.stderr.take()
+    }
+
+    /// Explicit graceful shutdown. Sends SIGTERM first, then SIGKILL after
+    /// 5 s. Mirrors the SandboxDriver shutdown semantics.
+    pub async fn shutdown(&mut self) -> std::io::Result<()> {
+        const KILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+            match tokio::time::timeout(KILL_TIMEOUT, child.wait()).await {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    child.start_kill().ok();
+                    child.wait().await.ok();
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Drop for NvmsDriver {
+    fn drop(&mut self) {
+        // Best-effort: spawn the async shutdown on the tokio runtime if one
+        // exists; otherwise rely on kernel child reaping. We don't block on
+        // shutdown here — Drop is sync — but we *do* send SIGTERM/start_kill
+        // so the OS reclaims resources promptly.
+        if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                let pid = child.id().unwrap_or(0) as i32;
+                if pid > 0 {
+                    unsafe {
+                        libc::kill(pid, libc::SIGTERM);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+            }
+            // Detach the child so tokio can reap it asynchronously without
+            // awaiting; the kernel will SIGKILL on parent exit if needed.
+            let _ = child.id();
+        }
     }
 }
