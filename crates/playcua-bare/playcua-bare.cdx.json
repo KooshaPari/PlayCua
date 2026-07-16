@@ -1,0 +1,63 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.3",
+  "version": 1,
+  "serialNumber": "urn:uuid:7f6219de-ad19-4952-8655-2d7f41928a2a",
+  "metadata": {
+    "timestamp": "2026-06-28T19:26:31.068072000Z",
+    "tools": [
+      {
+        "vendor": "CycloneDX",
+        "name": "cargo-cyclonedx",
+        "version": "0.5.9"
+      }
+    ],
+    "authors": [
+      {
+        "name": "playcua contributors"
+      }
+    ],
+    "component": {
+      "type": "library",
+      "bom-ref": "path+file:///Users/kooshapari/CodeProjects/Phenotype/repos/PlayCua/crates/playcua-bare#0.1.0",
+      "author": "playcua contributors",
+      "name": "playcua-bare",
+      "version": "0.1.0",
+      "description": "Scaffold crate for the bare-cua core types merge into PlayCua (L4 #70)",
+      "scope": "required",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/playcua-bare@0.1.0?download_url=file://.",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/KooshaPari/PlayCua"
+        }
+      ],
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "path+file:///Users/kooshapari/CodeProjects/Phenotype/repos/PlayCua/crates/playcua-bare#0.1.0 bin-target-0",
+          "name": "playcua_bare",
+          "version": "0.1.0",
+          "purl": "pkg:cargo/playcua-bare@0.1.0?download_url=file://.#src/lib.rs"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cdx:rustc:sbom:target:triple",
+        "value": "aarch64-apple-darwin"
+      }
+    ]
+  },
+  "components": [],
+  "dependencies": [
+    {
+      "ref": "path+file:///Users/kooshapari/CodeProjects/Phenotype/repos/PlayCua/crates/playcua-bare#0.1.0"
+    }
+  ]
+}
