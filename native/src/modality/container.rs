@@ -262,12 +262,16 @@ impl ContainerDriver {
         cmd.arg("run").arg("--rm").arg("-i");
         // WINDOWS BRIDGE: On Windows hosts `host` paths need translation
         // (C:\foo -> /mnt/c/foo) before they can be bind-mounted into the
-        // Linux container. The next session adds a `to_wsl_path` helper;
-        // for now we pass the path verbatim and let the kernel error if
-        // the runtime doesn't accept the Windows form (podman handles it,
-        // docker desktop requires WSL2 anyway).
+        // Linux container. `to_wsl_path` is idempotent — on non-Windows
+        // hosts it's a no-op, and on Windows it leaves already-WSL paths
+        // untouched. Per-CLI translation policy:
+        //   * docker       — needs /mnt/c/... (WSL2 backend)
+        //   * podman       — accepts Windows paths on Windows-native backend,
+        //                    but /mnt/c/... is also valid; translate for safety
+        //   * nerdctl      — same as podman; translate for safety
+        let host_path = to_wsl_path(&std::env::temp_dir().display().to_string());
         cmd.arg("--volume")
-            .arg(format!("{0}:{0}", std::env::temp_dir().display()))
+            .arg(format!("{0}:{0}", host_path))
             .arg(&self.image)
             .arg("/usr/local/bin/playcua-bridge");
         cmd.stdin(std::process::Stdio::piped());
@@ -354,5 +358,142 @@ impl Drop for ContainerDriver {
                 let _ = child.start_kill();
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Path translation helper (L7 #134 WINDOWS-BRIDGE follow-up)
+//
+// On Windows hosts, bind-mount paths passed to `docker run --volume` need
+// translation before the WSL2-backed Linux container runtime can consume them.
+// `podman` (when configured with the Windows-native backend) accepts Windows
+// paths verbatim, so the helper is only invoked on Windows + when the runtime
+// is `docker` (which requires WSL2 on Windows). For `podman` and `nerdctl`
+// on Windows, the helper is still safe to call — it returns the path
+// unchanged for those cases via the idempotence check.
+// ---------------------------------------------------------------------------
+
+/// Translate a Windows-style path into the equivalent WSL path.
+///
+/// Examples (Windows host):
+///   `C:\Users\koosh\.cache`           -> `/mnt/c/Users/koosh/.cache`
+///   `c:\Users\koosh\.cache`           -> `/mnt/c/Users/koosh/.cache`
+///   `\\?\C:\Users\koosh\.cache`       -> `/mnt/c/Users/koosh/.cache`
+///   `C:`                              -> `/mnt/c`
+///   `\\wsl$\Ubuntu\home\koosh`        -> unchanged (already a WSL path)
+///   `/mnt/c/Users/koosh`              -> unchanged (already translated)
+///
+/// On non-Windows targets this is a no-op — Unix hosts don't need any
+/// translation when invoking `docker run` directly.
+///
+/// Idempotent: paths that already look like WSL paths (`/mnt/...`,
+/// `/...`, `\\wsl$\...`) pass through unchanged. This means the helper
+/// can be called unconditionally without double-translating paths that
+/// were already prepared upstream (e.g. `$PLAYCUA_HOST_TMP` set by an
+/// orchestrator script).
+pub fn to_wsl_path(host_path: &str) -> String {
+    #[cfg(not(windows))]
+    {
+        return host_path.to_string();
+    }
+
+    #[cfg(windows)]
+    {
+        // Strip the Win32 extended-length prefix `\\?\` if present.
+        // This check must come BEFORE the generic `\\`-prefix check
+        // below — an extended path like `\\?\C:\foo` would otherwise
+        // hit the "already UNC" branch and pass through unchanged.
+        let (stripped, _was_extended) = if let Some(rest) =
+            host_path.strip_prefix("\\\\?\\")
+        {
+            (rest, true)
+        } else {
+            (host_path, false)
+        };
+
+        // Idempotence: if the path is already in WSL form, leave it.
+        // We test against `stripped` (extended prefix removed) so that
+        // `\\?\C:\foo` is treated as a Windows drive path, not as a UNC.
+        if stripped.starts_with("/mnt/")
+            || stripped.starts_with('/')
+            || stripped.starts_with("\\\\wsl$\\")
+            || stripped.starts_with("\\\\")
+        {
+            return host_path.to_string();
+        }
+
+        // Expect a drive-letter path: `<letter>:<rest>`.
+        let bytes = stripped.as_bytes();
+        if bytes.len() < 2 || bytes[1] != b':' {
+            // Not a Windows drive path — return unchanged and let the
+            // container runtime error if it can't handle the form.
+            return host_path.to_string();
+        }
+        let drive = (bytes[0] as char).to_ascii_lowercase();
+        let rest = &stripped[2..];
+
+        // Drive root (e.g. `C:`) -> `/mnt/c`.
+        if rest.is_empty() {
+            return format!("/mnt/{}", drive);
+        }
+
+        // Path must start with `\` or `/` to be a rooted path; if it
+        // doesn't (e.g. just a drive-relative path), normalize.
+        let rest = rest.strip_prefix('\\').or_else(|| rest.strip_prefix('/')).unwrap_or(rest);
+
+        // Translate backslashes -> forward slashes.
+        let translated = rest.replace('\\', "/");
+
+        format!("/mnt/{}/{}", drive, translated)
+    }
+}
+
+#[cfg(test)]
+mod wsl_path_tests {
+    use super::to_wsl_path;
+
+    #[cfg(windows)]
+    #[test]
+    fn uppercase_drive_translates() {
+        assert_eq!(to_wsl_path(r"C:\Users\koosh\.cache"), "/mnt/c/Users/koosh/.cache");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn lowercase_drive_translates() {
+        assert_eq!(to_wsl_path(r"c:\Users\koosh\.cache"), "/mnt/c/Users/koosh/.cache");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn extended_prefix_is_stripped() {
+        assert_eq!(to_wsl_path(r"\\?\C:\foo\bar"), "/mnt/c/foo/bar");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn drive_root_translates_to_mnt_slash_drive() {
+        assert_eq!(to_wsl_path("C:"), "/mnt/c");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn already_wsl_path_passes_through() {
+        assert_eq!(to_wsl_path("/mnt/c/Users/koosh"), "/mnt/c/Users/koosh");
+        assert_eq!(to_wsl_path("/home/koosh/.cache"), "/home/koosh/.cache");
+        assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu\home"), r"\\wsl$\Ubuntu\home");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn non_drive_path_passes_through() {
+        // No `C:` prefix — runtime will error if it can't handle it.
+        assert_eq!(to_wsl_path(r"\foo\bar"), r"\foo\bar");
+    }
+
+    #[test]
+    fn noop_on_unix() {
+        #[cfg(not(windows))]
+        assert_eq!(to_wsl_path("/tmp/cache"), "/tmp/cache");
     }
 }

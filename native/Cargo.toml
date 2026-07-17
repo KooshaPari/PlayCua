@@ -18,6 +18,15 @@ required-features = ["mcp-server"]
 name = "playcua-cli"
 path = "src/bin/playcua-cli.rs"
 
+# L7 #134 — hermetic spawn test binary. Runs as `cargo run --bin
+# hermetic_spawn_test`. Spawns a fake-backend shell script that
+# prints FAKE-ALIVE then exits, and verifies the spawn/shutdown
+# pattern (tokio Command + libc killpg) the modality drivers use.
+# Cold-compile time is ~3s on this workspace.
+[[bin]]
+name = "hermetic_spawn_test"
+path = "src/bin/hermetic_spawn_test.rs"
+
 [lib]
 name = "playcua_native"
 path = "src/lib.rs"
