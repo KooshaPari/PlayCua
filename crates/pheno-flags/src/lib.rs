@@ -111,30 +111,45 @@ fn parse_bool(s: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
-    fn with_env<F: FnOnce()>(pairs: &[(&str, &str)], f: F) {
-        // Save and clear, set ours, run, restore.
-        let mut saved: Vec<(String, Option<String>)> = Vec::new();
-        for (k, _) in pairs {
-            let prev = std::env::var(k).ok();
-            saved.push((k.to_string(), prev));
+    /// Serialize env-mutating unit tests within this crate. Cross-crate
+    /// races with `playcua-native` integration smoke are avoided by
+    /// clearing *all* `<PREFIX>_*` vars for the duration of each test
+    /// (not only the keys we set).
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_env<F: FnOnce()>(prefix: &str, pairs: &[(&str, &str)], f: F) {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let needle = format!("{prefix}_");
+
+        // Snapshot every matching var, then clear the whole prefix space.
+        let mut saved: Vec<(String, String)> = Vec::new();
+        for (k, v) in std::env::vars() {
+            if k.starts_with(&needle) {
+                saved.push((k, v));
+            }
+        }
+        for (k, _) in &saved {
             std::env::remove_var(k);
         }
         for (k, v) in pairs {
             std::env::set_var(k, v);
         }
         f();
-        for (k, prev) in saved {
-            match prev {
-                Some(v) => std::env::set_var(&k, &v),
-                None => std::env::remove_var(&k),
-            }
+        // Remove what we set, then restore the prior snapshot.
+        for (k, _) in pairs {
+            std::env::remove_var(k);
+        }
+        for (k, v) in saved {
+            std::env::set_var(k, v);
         }
     }
 
     #[test]
     fn from_env_reads_truthy_and_falsy() {
         with_env(
+            "PLAYCUA",
             &[
                 ("PLAYCUA_FOO_A", "1"),
                 ("PLAYCUA_FOO_B", "true"),
@@ -157,7 +172,7 @@ mod tests {
 
     #[test]
     fn unknown_key_defaults_to_false() {
-        with_env(&[("PLAYCUA_KNOWN", "1")], || {
+        with_env("PLAYCUA", &[("PLAYCUA_KNOWN", "1")], || {
             let flags = FlagSet::from_env("PLAYCUA").unwrap();
             assert!(flags.is_enabled("KNOWN"));
             assert!(!flags.is_enabled("NEVER_SEEN"));
@@ -166,7 +181,7 @@ mod tests {
 
     #[test]
     fn unparseable_value_is_error() {
-        with_env(&[("PLAYCUA_BAD", "not-a-bool")], || {
+        with_env("PLAYCUA", &[("PLAYCUA_BAD", "not-a-bool")], || {
             let err = FlagSet::from_env("PLAYCUA").unwrap_err();
             assert!(matches!(err, FlagError::InvalidValue { .. }));
         });
@@ -175,6 +190,7 @@ mod tests {
     #[test]
     fn len_and_iter_match_insertions() {
         with_env(
+            "PLAYCUA",
             &[("PLAYCUA_X", "1"), ("PLAYCUA_Y", "0")],
             || {
                 let flags = FlagSet::from_env("PLAYCUA").unwrap();

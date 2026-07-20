@@ -158,7 +158,11 @@ use std::str::FromStr;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::sync::{Arc, Mutex};
+
+    /// Serialize tests that touch `RUST_LOG` / shared subscriber env.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// Shared byte buffer + `MakeWriter` impl for tests.
     #[derive(Clone, Default)]
@@ -183,6 +187,9 @@ mod tests {
 
     #[test]
     fn builder_emits_json_with_custom_writer() {
+        let _env = ENV_LOCK.lock().expect("env lock");
+        // Ensure a sibling test's RUST_LOG=error cannot suppress this line.
+        std::env::remove_var("RUST_LOG");
         let buf = SharedBuf::default();
         let subscriber = builder().finish_json_with_writer(buf.clone());
 
@@ -199,6 +206,7 @@ mod tests {
 
     #[test]
     fn default_directive_overrides_env_filter() {
+        let _env = ENV_LOCK.lock().expect("env lock");
         let buf = SharedBuf::default();
         // `error` is the env-level floor; we override `foo::bar` to `info`.
         std::env::set_var("RUST_LOG", "error");
