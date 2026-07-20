@@ -215,7 +215,10 @@ async fn main() -> Result<()> {
     };
 
     let (code, json) = match &cli.socket {
+        #[cfg(unix)]
         Some(socket_path) => socket_call(socket_path, &method, params).await?,
+        #[cfg(not(unix))]
+        Some(_) => anyhow::bail!("--socket is only supported on Unix"),
         None => daemon_call(&cli.daemon, &method, params).await?,
     };
     if code != 0 {

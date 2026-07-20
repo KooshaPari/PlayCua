@@ -162,8 +162,9 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
 
     frame_pool
         .FrameArrived(&windows::Foundation::TypedEventHandler::new(
-            move |pool, _| {
-                if let Some(pool) = pool.as_ref() {
+            move |pool: windows::core::Ref<Direct3D11CaptureFramePool>, _| {
+                let pool_ref: Option<&Direct3D11CaptureFramePool> = pool.as_ref();
+                if let Some(pool) = pool_ref {
                     if let Ok(frame) = pool.TryGetNextFrame() {
                         let result = extract_frame_pixels(&frame, width, height);
                         if let Some(sender) = tx2.lock().unwrap().take() {
