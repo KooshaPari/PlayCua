@@ -110,17 +110,19 @@ fn build_sandbox_ports(selected: &SelectedModality) -> PortBundle {
         };
     }
 
-    let sandbox: Arc<dyn Sandbox> = Arc::new(WireSandboxAdapter::new());
+    let adapter = WireSandboxAdapter::new();
+    let bridge_slot = adapter.bridge_slot();
+    let sandbox: Arc<dyn Sandbox> = Arc::new(adapter);
     let process: Arc<dyn ProcessPort> = Arc::new(SandboxProcessAdapter {
         sandbox: Arc::clone(&sandbox),
     });
-    // Lazy stdio JSON-RPC bridge — resolves PLAYCUA_BRIDGE_BIN /
-    // playcua-bridge on first capture/input/window call; fail-loud if
-    // missing (never falls back to native host adapters).
-    let bridge = SandboxBridgePorts::lazy_connect();
+    // I/O ports share the SandboxDriver-spawned bridge slot (filled on
+    // guest spawn or on first I/O via spawn_bridge). Fail-loud if missing
+    // — never falls back to native host adapters.
+    let bridge = SandboxBridgePorts::from_shared_slot(bridge_slot);
     tracing::info!(
         detail = %selected.detail,
-        "sandbox I/O ports wired to playcua-bridge JSON-RPC tunnel"
+        "sandbox I/O ports wired to SandboxDriver-managed playcua-bridge"
     );
     PortBundle {
         capture: bridge.capture(),
@@ -328,8 +330,32 @@ mod tests {
         let _guard = crate::modality::sandbox::SANDBOX_ENV_LOCK
             .lock()
             .expect("sandbox env lock");
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
+            .lock()
+            .expect("bridge env lock");
         let prev = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
+        let prev_bridge = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "direct");
+        let bin = {
+            let mut candidates = vec![];
+            if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
+                candidates
+                    .push(std::path::PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+            }
+            candidates.push(std::path::PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+            candidates
+                .into_iter()
+                .find(|p| p.is_file())
+                .expect("fake-playcua-bridge.sh")
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bin, perms).ok();
+        }
+        std::env::set_var("PLAYCUA_BRIDGE_BIN", &bin);
         let ports = build_ports(
             &selected(ModalityKind::Sandbox, true, "backend=direct"),
             Arc::new(NoopCapture),
@@ -353,10 +379,17 @@ mod tests {
             Some(v) => std::env::set_var("PLAYCUA_SANDBOX_BACKEND", v),
             None => std::env::remove_var("PLAYCUA_SANDBOX_BACKEND"),
         }
+        match prev_bridge {
+            Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+            None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+        }
     }
 
     #[tokio::test]
     async fn sandbox_capture_does_not_silently_use_native() {
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
+            .lock()
+            .expect("bridge env lock");
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
         let ports = build_ports(

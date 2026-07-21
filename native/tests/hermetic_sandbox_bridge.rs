@@ -2,15 +2,18 @@
 //!
 //! ADR-006 follow-up: capture/input/window under sandbox modality must talk
 //! NDJSON JSON-RPC to playcua-bridge (never native host). This test points
-//! `PLAYCUA_BRIDGE_BIN` at the fixture and exercises the real spawn path.
+//! `PLAYCUA_BRIDGE_BIN` at the fixture and exercises SandboxDriver spawn
+//! plus the shared-slot I/O path.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use playcua_native::adapters::sandbox::WireSandboxAdapter;
 use playcua_native::adapters::sandbox_bridge::SandboxBridgePorts;
 use playcua_native::domain::input::{Key, KeyAction, MouseAction, MouseButton, MouseEvent};
 use playcua_native::domain::window::WindowFilter;
 use playcua_native::ipc::bridge_client::BridgeClient;
+use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 
 fn fixture_bridge() -> PathBuf {
     let mut candidates = vec![];
@@ -25,17 +28,20 @@ fn fixture_bridge() -> PathBuf {
         .expect("fake-playcua-bridge.sh fixture must exist")
 }
 
-#[tokio::test]
-async fn fake_bridge_spawn_capture_input_windows() {
-    let bin = fixture_bridge();
-    // Ensure executable bit is respected even if checkout dropped it.
+fn chmod_bridge(bin: &PathBuf) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        let mut perms = std::fs::metadata(bin).unwrap().permissions();
         perms.set_mode(0o755);
-        std::fs::set_permissions(&bin, perms).ok();
+        std::fs::set_permissions(bin, perms).ok();
     }
+}
+
+#[tokio::test]
+async fn fake_bridge_spawn_capture_input_windows() {
+    let bin = fixture_bridge();
+    chmod_bridge(&bin);
 
     let client = BridgeClient::spawn(&bin, &[])
         .await
@@ -92,6 +98,7 @@ async fn fake_bridge_spawn_capture_input_windows() {
 #[tokio::test]
 async fn lazy_connect_uses_playcua_bridge_bin_env() {
     let bin = fixture_bridge();
+    chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
     std::env::set_var("PLAYCUA_BRIDGE_BIN", &bin);
 
@@ -102,6 +109,63 @@ async fn lazy_connect_uses_playcua_bridge_bin_env() {
         .await
         .expect("lazy spawn via PLAYCUA_BRIDGE_BIN");
     assert_eq!(frame.width, 8);
+
+    match prev {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+    }
+}
+
+#[tokio::test]
+async fn shared_slot_uses_driver_spawned_bridge() {
+    let bin = fixture_bridge();
+    chmod_bridge(&bin);
+    let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
+    let prev_backend = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
+    std::env::set_var("PLAYCUA_BRIDGE_BIN", &bin);
+    std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "direct");
+
+    let adapter = WireSandboxAdapter::new();
+    let ports = SandboxBridgePorts::from_shared_slot(adapter.bridge_slot());
+    // First I/O call → SandboxDriver::spawn_bridge into shared slot.
+    let frame = ports
+        .capture()
+        .capture_display(0)
+        .await
+        .expect("shared-slot driver spawn");
+    assert_eq!(frame.width, 8);
+    assert!(
+        adapter.bridge_slot().lock().await.is_some(),
+        "adapter slot must hold live bridge"
+    );
+
+    match prev {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+    }
+    match prev_backend {
+        Some(v) => std::env::set_var("PLAYCUA_SANDBOX_BACKEND", v),
+        None => std::env::remove_var("PLAYCUA_SANDBOX_BACKEND"),
+    }
+}
+
+#[tokio::test]
+async fn driver_spawn_bridge_then_ports() {
+    let bin = fixture_bridge();
+    chmod_bridge(&bin);
+    let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
+    std::env::set_var("PLAYCUA_BRIDGE_BIN", &bin);
+
+    let mut driver = SandboxDriver::new(SandboxBackend::Direct);
+    let client = driver.spawn_bridge().await.expect("driver spawn_bridge");
+    let ports = SandboxBridgePorts::with_client(client);
+    let frame = ports
+        .capture()
+        .capture_display(0)
+        .await
+        .expect("ports via driver bridge");
+    assert_eq!(frame.width, 8);
+    driver.shutdown().await.expect("shutdown");
 
     match prev {
         Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
