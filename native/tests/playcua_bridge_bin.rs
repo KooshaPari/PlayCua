@@ -11,7 +11,7 @@ use std::sync::Arc;
 use playcua_native::adapters::sandbox_bridge::SandboxBridgePorts;
 use playcua_native::domain::input::{Key, KeyAction, MouseAction, MouseButton, MouseEvent};
 use playcua_native::domain::window::WindowFilter;
-use playcua_native::ipc::bridge_client::BridgeClient;
+use playcua_native::ipc::bridge_client::{BridgeClient, BRIDGE_ENV_LOCK};
 
 fn bridge_bin() -> PathBuf {
     // cargo sets CARGO_BIN_EXE_<name> for integration tests when the
@@ -51,10 +51,25 @@ fn bridge_bin() -> PathBuf {
 
 #[tokio::test]
 async fn real_bridge_bin_screenshot_input_windows() {
+    let _guard = BRIDGE_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    // Hermetic screenshot envelope for CI; windows use real guest adapters.
+    let prev_stub = std::env::var("PLAYCUA_BRIDGE_STUB_SCREENSHOT").ok();
+    std::env::set_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT", "1");
+
     let bin = bridge_bin();
     let client = BridgeClient::spawn(&bin, &[])
         .await
         .expect("spawn playcua-bridge");
+
+    let ping = client
+        .call("ping", serde_json::Value::Null)
+        .await
+        .expect("ping");
+    assert_eq!(ping["screenshot"], "stub");
+    assert_eq!(ping["windows"], "real");
+
     let ports = SandboxBridgePorts::with_client(Arc::new(client));
 
     let frame = ports
@@ -88,12 +103,13 @@ async fn real_bridge_bin_screenshot_input_windows() {
         .expect("input.click");
 
     let wins = ports.windows().list_windows().await.expect("windows.list");
-    assert!(wins.is_empty(), "stub bridge returns empty window list");
+    // Real enumeration — length is host-dependent; must be a successful Vec.
+    let _ = wins;
 
     let found = ports
         .windows()
         .find_window(WindowFilter {
-            title: Some("anything".into()),
+            title: Some("___no_such_playcua_win___".into()),
             pid: None,
         })
         .await
@@ -105,6 +121,11 @@ async fn real_bridge_bin_screenshot_input_windows() {
         .focus_window(1)
         .await
         .expect("windows.focus");
+
+    match prev_stub {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT"),
+    }
 }
 
 #[tokio::test]

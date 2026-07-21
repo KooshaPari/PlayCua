@@ -3,6 +3,8 @@
 //! Sandbox modality's [`BridgeClient`](playcua_native::ipc::BridgeClient)
 //! spawns this binary (or `PLAYCUA_BRIDGE_BIN`) and tunnels
 //! `screenshot` / `input.*` / `windows.*` over piped stdin/stdout.
+//! Screenshot and windows use real guest-OS adapters (same as host);
+//! set `PLAYCUA_BRIDGE_STUB_SCREENSHOT=1` for hermetic 1×1 PNG in CI.
 //! Logging goes to stderr only so stdout stays wire-clean.
 //!
 //! Build: `cargo build --locked -p playcua-native --bin playcua-bridge`
@@ -37,7 +39,7 @@ async fn main() {
     loop {
         match read_request(&mut reader).await {
             Ok(Some(req)) => {
-                let resp = handle_request(req);
+                let resp = handle_request(req).await;
                 if let Err(e) = write_response(&mut stdout, &resp).await {
                     error!(error = %e, "failed to write JSON-RPC response");
                     break;
