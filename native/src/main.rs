@@ -35,15 +35,10 @@ use playcua_native::ipc;
 use playcua_native::ipc::{read_request, write_response};
 use playcua_native::modality::ModalityKind;
 use playcua_native::modality::{ModalityEnv, ModalityRegistry};
+#[cfg(unix)]
+use playcua_native::socket;
 use tokio::io::{self, AsyncWriteExt, BufReader};
 use tracing::{error, info};
-
-mod adapters;
-mod domain;
-mod plugins;
-mod ports;
-#[cfg(unix)]
-mod socket;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {

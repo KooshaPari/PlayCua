@@ -3,29 +3,13 @@
 //! A **modality** is the runtime environment in which playcua-native operates.
 //! PlayCua supports five modalities per the NVMSCUA framework (see SPEC.md):
 //!
-//! - **native**: drive the host OS directly (the only modality with a fully-wired
-//!   App in this slice).
-//! - **sandbox**: drive a process running inside a sealed sandbox (Windows
-//!   Sandbox, Firecracker microVM, gVisor). Selection in this slice is
-//!   supported but routing through the sandbox is a follow-up.
-//! - **nvms**: drive a process running inside an `nvms`-orchestrated container
-//!   (the nanovms repo is the canonical home). The NvmsModality probes for
-//!   the `nvms` binary and reports availability.
-//! - **wsl**: drive a process running inside WSL (Windows-only). Skeleton.
-//! - **container**: drive a process inside a generic OCI container (Docker,
-//!   Podman, containerd). Skeleton.
-//!
-//! ## What the trait actually does
-//!
-//! The trait in this slice is **observability + selection**, not per-method
-//! routing. Each modality reports its kind, a human-readable description, an
-//! availability probe, and (optionally) command-line / connection metadata.
-//! The dispatcher and port traits are unchanged.
-//!
-//! Full per-method routing (e.g. "screenshot goes to native, but input.type
-//! goes through a sandboxed agent") is intentionally out of scope for this
-//! slice — that requires splitting the App construction into per-port
-//! modality lookup, which is a larger refactor (tracked in ADR-006).
+//! - **native**: drive the host OS directly (fully-wired App).
+//! - **sandbox**: drive a guest via [`sandbox::SandboxDriver`]. Process
+//!   lifecycle is wired through [`dispatch`] + `WireSandboxAdapter` (M2).
+//!   Capture/input/window fail-loud until the stdio bridge is connected.
+//! - **nvms**: probe + driver API (M3); per-port dispatch pending.
+//! - **wsl**: probe + driver API (M4); per-port dispatch pending.
+//! - **container**: probe + driver API (M5); per-port dispatch pending.
 //!
 //! ## Selection precedence
 //!
@@ -35,6 +19,7 @@
 //! 4. `native` (lowest — always works)
 
 pub mod container;
+pub mod dispatch;
 pub mod native;
 pub mod nvms;
 pub mod registry;

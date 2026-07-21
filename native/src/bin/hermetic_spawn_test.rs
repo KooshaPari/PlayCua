@@ -76,18 +76,12 @@ async fn main() -> ExitCode {
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(|| {
-            // Put the child in its own pgroup so SIGTERM-to-pgid
-            // reaps the child + descendants as one unit (matches
-            // SandboxDriver::spawn / NvmsDriver::spawn /
-            // ContainerDriver::spawn).
+            // Own session/pgroup so SIGTERM-to-pgid reaps only the guest
+            // tree (matches SandboxDriver::spawn_guest).
+            libc::setsid();
             Ok(())
         });
     }
-    // NOTE: cmd.pre_exec is FnMut; the closure must be Send-able. On
-    // Unix this is just `Ok(())` because `setsid` would normally be
-    // called here via libc; for the hermetic test we accept the
-    // child being in the parent's pgroup (no descendants to reap).
-
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
@@ -146,6 +140,14 @@ async fn main() -> ExitCode {
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,

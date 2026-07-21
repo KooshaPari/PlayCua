@@ -49,13 +49,23 @@ pub struct FlagSet {
 }
 
 impl FlagSet {
+    /// Suffixes under `<PREFIX>_` that are **config strings**, not boolean
+    /// flags. Skipped by [`FlagSet::from_env`] so modality/sandbox/nvms
+    /// env vars can coexist with `PLAYCUA_VERBOSE` / `PLAYCUA_DRY_RUN`.
+    const NON_FLAG_SUFFIXES: &'static [&'static str] = &[
+        "MODALITY",
+        "SANDBOX_BACKEND",
+        "NVMS_CONFIG",
+    ];
+
     /// Load every `<PREFIX>_<KEY>` env var into a `FlagSet`.
     ///
     /// Iterates `std::env::vars()` and keeps entries whose name starts
     /// with `<PREFIX>_`. The `KEY` portion is the suffix after the
-    /// last `_` boundary. Returns [`FlagError::InvalidValue`] on the
-    /// first unparseable value (fail-fast — easier to debug than a
-    /// partial load).
+    /// prefix. Known non-boolean config keys (see
+    /// [`Self::NON_FLAG_SUFFIXES`]) are skipped. Returns
+    /// [`FlagError::InvalidValue`] on the first unparseable boolean
+    /// value (fail-fast).
     pub fn from_env(prefix: &str) -> Result<Self, FlagError> {
         let needle = format!("{prefix}_");
         let mut flags = BTreeMap::new();
@@ -63,6 +73,9 @@ impl FlagSet {
             if let Some(suffix) = k.strip_prefix(&needle) {
                 if suffix.is_empty() {
                     // `<PREFIX>_` with no key — skip silently.
+                    continue;
+                }
+                if Self::NON_FLAG_SUFFIXES.iter().any(|s| *s == suffix) {
                     continue;
                 }
                 let parsed = parse_bool(&v).ok_or_else(|| FlagError::InvalidValue {
@@ -144,6 +157,24 @@ mod tests {
         for (k, v) in saved {
             std::env::set_var(k, v);
         }
+    }
+
+    #[test]
+    fn non_flag_config_suffixes_are_skipped() {
+        with_env(
+            "PLAYCUA",
+            &[
+                ("PLAYCUA_MODALITY", "sandbox"),
+                ("PLAYCUA_SANDBOX_BACKEND", "direct"),
+                ("PLAYCUA_NVMS_CONFIG", "/tmp/nvms.toml"),
+                ("PLAYCUA_VERBOSE", "1"),
+            ],
+            || {
+                let flags = FlagSet::from_env("PLAYCUA").expect("config strings must not fail");
+                assert!(flags.is_enabled("VERBOSE"));
+                assert_eq!(flags.len(), 1);
+            },
+        );
     }
 
     #[test]
