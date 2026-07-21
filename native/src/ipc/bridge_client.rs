@@ -10,7 +10,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(test)]
 use std::sync::Mutex;
 
 use serde_json::{json, Value};
@@ -22,7 +21,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use super::mod_types::{Request, Response};
 
 /// Serializes tests that mutate `PLAYCUA_BRIDGE_BIN` (process-global).
-#[cfg(test)]
+/// Available outside `cfg(test)` so integration tests can take the same lock.
 pub static BRIDGE_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// Errors from the sandbox JSON-RPC bridge client.
@@ -165,8 +164,10 @@ impl BridgeClient {
                 message: err.message,
             });
         }
-        resp.result
-            .ok_or_else(|| BridgeError::Protocol("response missing result".into()))
+        // JSON-RPC allows `"result": null` (e.g. windows.find miss). serde maps
+        // that to `Option::None` for `Option<Value>`, so treat absent result
+        // with no error as JSON null rather than a protocol failure.
+        Ok(resp.result.unwrap_or(Value::Null))
     }
 
     /// Best-effort shutdown of a child-backed client.
@@ -276,6 +277,27 @@ mod tests {
             .await
             .expect_err("must surface RPC error");
         assert!(matches!(err, BridgeError::Rpc { code: -32000, .. }));
+        server.await.expect("server");
+    }
+
+    #[tokio::test]
+    async fn duplex_null_result_is_ok() {
+        let (client, mut peer) = BridgeClient::duplex_pair(64 * 1024);
+        let server = tokio::spawn(async move {
+            let mut reader = BufReader::new(&mut peer);
+            let req = crate::ipc::mod_types::read_request(&mut reader)
+                .await
+                .expect("read")
+                .expect("eof");
+            assert_eq!(req.method, "windows.find");
+            let resp = WireResponse::ok(req.id, Value::Null);
+            write_response(&mut peer, &resp).await.expect("write");
+        });
+        let result = client
+            .call("windows.find", json!({ "title": "x" }))
+            .await
+            .expect("null result must succeed");
+        assert!(result.is_null());
         server.await.expect("server");
     }
 

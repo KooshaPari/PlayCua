@@ -13,6 +13,7 @@ use playcua_native::adapters::sandbox_bridge::SandboxBridgePorts;
 use playcua_native::domain::input::{Key, KeyAction, MouseAction, MouseButton, MouseEvent};
 use playcua_native::domain::window::WindowFilter;
 use playcua_native::ipc::bridge_client::BridgeClient;
+use playcua_native::ipc::BRIDGE_ENV_LOCK;
 use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 
 fn fixture_bridge() -> PathBuf {
@@ -97,6 +98,7 @@ async fn fake_bridge_spawn_capture_input_windows() {
 
 #[tokio::test]
 async fn lazy_connect_uses_playcua_bridge_bin_env() {
+    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
@@ -118,6 +120,7 @@ async fn lazy_connect_uses_playcua_bridge_bin_env() {
 
 #[tokio::test]
 async fn shared_slot_uses_driver_spawned_bridge() {
+    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
@@ -151,6 +154,7 @@ async fn shared_slot_uses_driver_spawned_bridge() {
 
 #[tokio::test]
 async fn driver_spawn_bridge_then_ports() {
+    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
