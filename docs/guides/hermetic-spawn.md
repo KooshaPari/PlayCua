@@ -15,7 +15,11 @@ cargo run --locked --manifest-path native/Cargo.toml --bin hermetic_spawn_test -
 PLAYCUA_SANDBOX_BACKEND=direct cargo test --locked --manifest-path native/Cargo.toml
 ```
 
-Fixtures live in `native/tests/fixtures/` (`fake-nvms.sh`, `fake-sandbox.sh`).
+Fixtures live in `native/tests/fixtures/` (`fake-nvms.sh`, `fake-sandbox.sh`,
+`fake-playcua-bridge.sh`).
+
+For the sandbox capture/input/window JSON-RPC tunnel, see
+[sandbox-jsonrpc-bridge.md](./sandbox-jsonrpc-bridge.md).
 
 ## CI
 

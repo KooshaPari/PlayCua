@@ -1,7 +1,9 @@
 //! IPC layer — JSON-RPC wire types, read/write helpers, and the dispatcher.
 
+pub mod bridge_client;
 pub mod dispatcher;
 pub mod mod_types;
 
 // Re-export wire types at the ipc:: level for convenience.
+pub use bridge_client::{BridgeClient, BridgeError};
 pub use mod_types::{read_request, write_response, Request, Response};

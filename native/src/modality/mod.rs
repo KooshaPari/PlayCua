@@ -6,7 +6,8 @@
 //! - **native**: drive the host OS directly (fully-wired App).
 //! - **sandbox**: drive a guest via [`sandbox::SandboxDriver`]. Process
 //!   lifecycle is wired through [`dispatch`] + `WireSandboxAdapter` (M2).
-//!   Capture/input/window fail-loud until the stdio bridge is connected.
+//!   Capture/input/window tunnel via stdio JSON-RPC to `playcua-bridge`
+//!   ([`crate::adapters::sandbox_bridge`]); missing bridge fails loud.
 //! - **nvms**: probe + driver API (M3); per-port dispatch pending.
 //! - **wsl**: probe + driver API (M4); per-port dispatch pending.
 //! - **container**: probe + driver API (M5); per-port dispatch pending.
