@@ -63,6 +63,18 @@ impl App {
 // Platform adapter selection
 // ---------------------------------------------------------------------------
 
+/// Guest-native capture adapter (same selection as host `playcua-native`).
+/// Used by `playcua-bridge` for real screenshot I/O.
+pub(crate) fn native_capture() -> Arc<dyn CapturePort> {
+    build_capture()
+}
+
+/// Guest-native window adapter (same selection as host `playcua-native`).
+/// Used by `playcua-bridge` for real windows.list/find/focus.
+pub(crate) fn native_windows() -> Arc<dyn WindowPort> {
+    build_window()
+}
+
 #[cfg(target_os = "windows")]
 fn build_capture() -> Arc<dyn CapturePort> {
     use crate::adapters::windows::wgc::WgcCapture;

@@ -69,11 +69,16 @@ bridge → host:  {"jsonrpc":"2.0","id":1,"result":{"data":"<b64>","width":W,"he
 | `key_event` / `type_text` / `mouse_event` | `input.key` / `input.type` / `input.click` / `input.scroll` / `input.move` | same shapes as public IPC |
 | `list_windows` / `find_window` / `focus_window` | `windows.list` / `windows.find` / `windows.focus` | |
 
-**Current `playcua-bridge` behavior:** `screenshot` returns a stub 1×1 PNG
-envelope; `input.*` acks `{ok:true}`; `windows.list` → `[]`, `windows.find`
-→ `null`, `windows.focus` → `{ok:true}`. Unknown methods → JSON-RPC
-`-32601` (fail loud). Real guest-OS capture / window enumeration is a
-follow-up.
+**Current `playcua-bridge` behavior:**
+
+| Method | Behavior |
+|--------|----------|
+| `screenshot` | Real guest-OS capture via the same native adapters as host `playcua-native` (xcap / platform). PNG envelope `{data,width,height,format:"png"}`. Permission / unsupported-platform failures → JSON-RPC `-32603` (fail loud). Set `PLAYCUA_BRIDGE_STUB_SCREENSHOT=1` for the hermetic 1×1 PNG stub (CI). |
+| `input.*` | Ack `{ok:true}` (guest input wiring is a later slice). |
+| `windows.list` / `windows.find` | Real enumeration via native window adapters (xcap / platform). Failures → `-32603`. |
+| `windows.focus` | Same semantics as host dispatcher: real on Windows; honest stub (Ok + warn) on macOS/Linux until NSWorkspace/EWMH focus lands. |
+| `ping` | Includes `"screenshot": "real"\|"stub"` and `"windows": "real"` capability fields. |
+| unknown | JSON-RPC `-32601` (fail loud). |
 
 ## Configuration
 
@@ -81,6 +86,7 @@ follow-up.
 |-----|---------|
 | `PLAYCUA_BRIDGE_BIN` | Absolute path to bridge binary (or hermetic fake) |
 | `PLAYCUA_SANDBOX_BACKEND` | Sandbox wrapper for `process.launch` (`direct` for CI) |
+| `PLAYCUA_BRIDGE_STUB_SCREENSHOT` | When `1`/`true`, `screenshot` returns the hermetic 1×1 PNG instead of calling guest capture (CI / headless). Default: real capture. |
 
 If the bridge binary is missing, I/O ports **and** guest spawn **fail loud**
 with an actionable error. There is no silent fallback to native
