@@ -3,8 +3,9 @@
 //! Sandbox modality's [`BridgeClient`](playcua_native::ipc::BridgeClient)
 //! spawns this binary (or `PLAYCUA_BRIDGE_BIN`) and tunnels
 //! `screenshot` / `input.*` / `windows.*` over piped stdin/stdout.
-//! Screenshot and windows use real guest-OS adapters (same as host);
-//! set `PLAYCUA_BRIDGE_STUB_SCREENSHOT=1` for hermetic 1×1 PNG in CI.
+//! Screenshot, input, and windows use real guest-OS adapters (same as host);
+//! set `PLAYCUA_BRIDGE_STUB_SCREENSHOT=1` / `PLAYCUA_BRIDGE_STUB_INPUT=1`
+//! for hermetic stubs in CI.
 //! Logging goes to stderr only so stdout stays wire-clean.
 //!
 //! Build: `cargo build --locked -p playcua-native --bin playcua-bridge`

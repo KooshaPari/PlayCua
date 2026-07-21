@@ -75,6 +75,12 @@ pub(crate) fn native_windows() -> Arc<dyn WindowPort> {
     build_window()
 }
 
+/// Guest-native input adapter (same selection as host `playcua-native`).
+/// Used by `playcua-bridge` for real `input.*` injection.
+pub(crate) fn native_input() -> Arc<dyn InputPort> {
+    build_input()
+}
+
 #[cfg(target_os = "windows")]
 fn build_capture() -> Arc<dyn CapturePort> {
     use crate::adapters::windows::wgc::WgcCapture;
