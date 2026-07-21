@@ -16,9 +16,24 @@
 //! are handled by [`SandboxDriver`]; the Sandbox port and App modality
 //! dispatch wire that driver into real process lifecycle (see
 //! `modality::dispatch` and `ports::sandbox::WireSandboxAdapter`).
+//!
+//! ## Bridge lifecycle
+//!
+//! Capture / input / window under sandbox modality talk NDJSON JSON-RPC to
+//! `playcua-bridge` (or `PLAYCUA_BRIDGE_BIN`). [`SandboxDriver`] owns that
+//! child alongside the guest so I/O ports do not depend solely on ambient
+//! `$PATH` at first call.
+//!
+//! **Direct backend (hermetic CI):** set `PLAYCUA_SANDBOX_BACKEND=direct` and
+//! point `PLAYCUA_BRIDGE_BIN` at `native/tests/fixtures/fake-playcua-bridge.sh`.
+//! [`SandboxDriver::spawn_bridge`] / [`SandboxDriver::spawn_guest_with_bridge`]
+//! then spawn the fake bridge as a live stdio child — never native host I/O.
 
 use super::{Modality, ModalityKind};
+use crate::ipc::bridge_client::{BridgeClient, BridgeError};
 use std::path::PathBuf;
+use std::sync::Arc;
+#[cfg(test)]
 use std::sync::Mutex;
 
 /// Serializes tests that mutate `PLAYCUA_SANDBOX_BACKEND` (process-global).
@@ -187,12 +202,16 @@ mod tests {
 /// (uses the `SandboxModality` probe).
 ///
 /// On construction the driver is *lazy*: no child process is started until
-/// [`SandboxDriver::spawn`] / [`SandboxDriver::spawn_guest`] is called.
-/// After spawn, the child is held inside `child` and torn down in `Drop`
-/// (SIGTERM, then SIGKILL after 5s via [`SandboxDriver::shutdown`]).
+/// [`SandboxDriver::spawn`] / [`SandboxDriver::spawn_guest`] /
+/// [`SandboxDriver::spawn_bridge`] is called.
+/// After spawn, the guest is held in `child` and the JSON-RPC bridge in
+/// `bridge`; both are torn down in `Drop` / [`SandboxDriver::shutdown`]
+/// (SIGTERM, then SIGKILL after 5s).
 pub struct SandboxDriver {
     backend: SandboxBackend,
     child: Option<tokio::process::Child>,
+    /// Live `playcua-bridge` (or `PLAYCUA_BRIDGE_BIN` / hermetic fake).
+    bridge: Option<Arc<BridgeClient>>,
 }
 
 impl SandboxDriver {
@@ -201,6 +220,7 @@ impl SandboxDriver {
         Self {
             backend,
             child: None,
+            bridge: None,
         }
     }
 
@@ -210,6 +230,7 @@ impl SandboxDriver {
         Some(Self {
             backend,
             child: None,
+            bridge: None,
         })
     }
 
@@ -246,6 +267,37 @@ impl SandboxDriver {
         self.spawn_guest("cat", &[]).await
     }
 
+    /// Resolve `PLAYCUA_BRIDGE_BIN` / `playcua-bridge` and spawn a live stdio
+    /// JSON-RPC child managed by this driver.
+    ///
+    /// Fail-loud if the binary is missing — never falls back to native host
+    /// capture/input/window. Idempotent: returns the existing client when
+    /// already spawned.
+    ///
+    /// Hermetic Direct backend: point `PLAYCUA_BRIDGE_BIN` at
+    /// `fake-playcua-bridge.sh` so CI exercises the real spawn path without
+    /// a production bridge on `$PATH`.
+    pub async fn spawn_bridge(&mut self) -> Result<Arc<BridgeClient>, BridgeError> {
+        if let Some(client) = &self.bridge {
+            return Ok(Arc::clone(client));
+        }
+        let bin = BridgeClient::resolve_binary()?;
+        let client = Arc::new(BridgeClient::spawn(&bin, &[]).await?);
+        self.bridge = Some(Arc::clone(&client));
+        tracing::info!(
+            backend = self.backend.binary(),
+            bridge = %bin.display(),
+            "sandbox driver spawned playcua-bridge child"
+        );
+        Ok(client)
+    }
+
+    /// Shared handle to the driver-managed bridge, if [`Self::spawn_bridge`]
+    /// (or [`Self::spawn_guest_with_bridge`]) has succeeded.
+    pub fn bridge_client(&self) -> Option<Arc<BridgeClient>> {
+        self.bridge.as_ref().map(Arc::clone)
+    }
+
     /// Spawn the backend wrapping `program` + `args` as the guest command.
     ///
     /// Backend-specific flag handling per ADR-006 M2:
@@ -256,7 +308,8 @@ impl SandboxDriver {
     ///   - `Firecracker`: out of scope; falls through to binary-only invoke
     ///
     /// After this call, the child's stdio is available via the `tunnel_*`
-    /// accessors for JSON-RPC bridging.
+    /// accessors. JSON-RPC I/O uses [`Self::spawn_bridge`] (sibling child),
+    /// not these guest pipes.
     pub async fn spawn_guest(&mut self, program: &str, args: &[String]) -> std::io::Result<()> {
         let mut cmd = self.build_command(program, args);
         cmd.stdin(std::process::Stdio::piped())
@@ -277,6 +330,19 @@ impl SandboxDriver {
         Ok(())
     }
 
+    /// Spawn guest and `playcua-bridge` together (bridge is a sibling child
+    /// owned by this driver). Fail-loud if the bridge binary is missing.
+    pub async fn spawn_guest_with_bridge(
+        &mut self,
+        program: &str,
+        args: &[String],
+    ) -> Result<Arc<BridgeClient>, BridgeError> {
+        self.spawn_guest(program, args)
+            .await
+            .map_err(|e| BridgeError::SpawnFailed(format!("{program}: {e}")))?;
+        self.spawn_bridge().await
+    }
+
     /// Get a `tokio::process::ChildStdin` for the spawned child's stdin.
     /// Returns `None` if `spawn()` has not been called.
     pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
@@ -295,10 +361,13 @@ impl SandboxDriver {
         self.child.as_mut()?.stderr.take()
     }
 
-    /// Explicit graceful shutdown. Sends SIGTERM first, then SIGKILL after
-    /// 5s. Also implemented in `Drop` (best-effort, sync).
+    /// Explicit graceful shutdown. Tears down bridge then guest (SIGTERM,
+    /// then SIGKILL after 5s). Also implemented in `Drop` (best-effort, sync).
     pub async fn shutdown(&mut self) -> std::io::Result<()> {
         const KILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        if let Some(bridge) = self.bridge.take() {
+            let _ = bridge.shutdown().await;
+        }
         if let Some(mut child) = self.child.take() {
             #[cfg(unix)]
             {
@@ -362,6 +431,8 @@ impl SandboxDriver {
 
 impl Drop for SandboxDriver {
     fn drop(&mut self) {
+        // BridgeClient::Drop kills its child; drop the Arc explicitly first.
+        self.bridge.take();
         if let Some(mut child) = self.child.take() {
             #[cfg(unix)]
             {

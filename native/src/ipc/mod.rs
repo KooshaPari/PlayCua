@@ -6,4 +6,6 @@ pub mod mod_types;
 
 // Re-export wire types at the ipc:: level for convenience.
 pub use bridge_client::{BridgeClient, BridgeError};
+#[cfg(test)]
+pub use bridge_client::BRIDGE_ENV_LOCK;
 pub use mod_types::{read_request, write_response, Request, Response};

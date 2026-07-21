@@ -10,14 +10,20 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 use serde_json::{json, Value};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::process::{Child, ChildStdin, ChildStdout};
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use super::mod_types::{Request, Response};
+
+/// Serializes tests that mutate `PLAYCUA_BRIDGE_BIN` (process-global).
+#[cfg(test)]
+pub static BRIDGE_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// Errors from the sandbox JSON-RPC bridge client.
 #[derive(Debug, Error)]
@@ -38,7 +44,7 @@ pub enum BridgeError {
 
 /// Live stdio session to a playcua-bridge (or hermetic fake).
 pub struct BridgeClient {
-    io: Mutex<BridgeIo>,
+    io: AsyncMutex<BridgeIo>,
     next_id: AtomicU64,
 }
 
@@ -100,7 +106,7 @@ impl BridgeClient {
             .take()
             .ok_or_else(|| BridgeError::SpawnFailed("stdout missing".into()))?;
         Ok(Self {
-            io: Mutex::new(BridgeIo::Child {
+            io: AsyncMutex::new(BridgeIo::Child {
                 child,
                 stdin,
                 stdout: BufReader::new(stdout),
@@ -123,7 +129,7 @@ impl BridgeClient {
     pub fn duplex_pair(max_buf: usize) -> (Self, DuplexStream) {
         let (client_side, peer) = tokio::io::duplex(max_buf);
         let client = Self {
-            io: Mutex::new(BridgeIo::Duplex {
+            io: AsyncMutex::new(BridgeIo::Duplex {
                 stream: BufReader::new(client_side),
             }),
             next_id: AtomicU64::new(1),
@@ -275,6 +281,7 @@ mod tests {
 
     #[test]
     fn resolve_binary_fails_loud_when_missing() {
+        let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge-xyz");
         let err = BridgeClient::resolve_binary().expect_err("must fail");

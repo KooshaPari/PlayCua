@@ -18,8 +18,10 @@ PLAYCUA_SANDBOX_BACKEND=direct cargo test --locked --manifest-path native/Cargo.
 Fixtures live in `native/tests/fixtures/` (`fake-nvms.sh`, `fake-sandbox.sh`,
 `fake-playcua-bridge.sh`).
 
-For the sandbox capture/input/window JSON-RPC tunnel, see
-[sandbox-jsonrpc-bridge.md](./sandbox-jsonrpc-bridge.md).
+**Direct + bridge:** set `PLAYCUA_SANDBOX_BACKEND=direct` and
+`PLAYCUA_BRIDGE_BIN` to `fake-playcua-bridge.sh`. `SandboxDriver` spawns
+the fake bridge as a sibling child of the guest (see
+[sandbox-jsonrpc-bridge.md](./sandbox-jsonrpc-bridge.md)).
 
 ## CI
 

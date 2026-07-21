@@ -4,8 +4,10 @@
 //! host adapters for I/O. Instead these ports tunnel through
 //! [`BridgeClient`] to a guest-side bridge (or a hermetic fake).
 //!
-//! Missing bridge binary → fail loud with an actionable error (no silent
-//! native leak).
+//! The live child is preferably spawned by [`SandboxDriver`] /
+//! [`crate::adapters::sandbox::WireSandboxAdapter`] into a shared slot so
+//! ports do not rely only on ambient `$PATH`. Missing bridge binary → fail
+//! loud with an actionable error (no silent native leak).
 
 use std::sync::Arc;
 
@@ -13,12 +15,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio::sync::Mutex;
 
+use crate::adapters::sandbox::SharedBridgeSlot;
 use crate::domain::capture::{CaptureError, Frame};
 use crate::domain::input::{
     InputError, Key, KeyAction, MouseAction, MouseButton, MouseEvent, ScrollDirection,
 };
 use crate::domain::window::{WindowError, WindowFilter, WindowInfo};
 use crate::ipc::bridge_client::{BridgeClient, BridgeError};
+use crate::modality::sandbox::{SandboxDriver, SandboxModality};
 use crate::ports::{CapturePort, InputPort, WindowPort};
 
 /// Shared bridge handle used by the three sandbox I/O ports.
@@ -32,15 +36,31 @@ struct SandboxBridgeInner {
     client: Mutex<Option<Arc<BridgeClient>>>,
     /// Pre-injected client for hermetic tests (skips binary resolve/spawn).
     injected: Option<Arc<BridgeClient>>,
+    /// Optional slot published by [`WireSandboxAdapter`] / [`SandboxDriver`].
+    shared: Option<SharedBridgeSlot>,
 }
 
 impl SandboxBridgePorts {
-    /// Production: resolve + spawn `playcua-bridge` on first I/O call.
+    /// Production: resolve + spawn `playcua-bridge` on first I/O call via
+    /// [`SandboxDriver::spawn_bridge`] (fail-loud if missing).
     pub fn lazy_connect() -> Self {
         Self {
             inner: Arc::new(SandboxBridgeInner {
                 client: Mutex::new(None),
                 injected: None,
+                shared: None,
+            }),
+        }
+    }
+
+    /// Prefer a bridge already published by [`WireSandboxAdapter`]; otherwise
+    /// spawn via [`SandboxDriver`] into that shared slot.
+    pub fn from_shared_slot(slot: SharedBridgeSlot) -> Self {
+        Self {
+            inner: Arc::new(SandboxBridgeInner {
+                client: Mutex::new(None),
+                injected: None,
+                shared: Some(slot),
             }),
         }
     }
@@ -51,6 +71,7 @@ impl SandboxBridgePorts {
             inner: Arc::new(SandboxBridgeInner {
                 client: Mutex::new(Some(Arc::clone(&client))),
                 injected: Some(client),
+                shared: None,
             }),
         }
     }
@@ -80,13 +101,28 @@ impl SandboxBridgePorts {
         if let Some(ref c) = self.inner.injected {
             return Ok(Arc::clone(c));
         }
+        // Prefer driver/adapter-published shared slot.
+        if let Some(ref slot) = self.inner.shared {
+            {
+                let guard = slot.lock().await;
+                if let Some(ref c) = *guard {
+                    return Ok(Arc::clone(c));
+                }
+            }
+            // Spawn via SandboxDriver into the shared slot (not ambient-only).
+            let client = spawn_bridge_via_driver().await?;
+            let mut guard = slot.lock().await;
+            if let Some(ref existing) = *guard {
+                return Ok(Arc::clone(existing));
+            }
+            *guard = Some(Arc::clone(&client));
+            return Ok(client);
+        }
         let mut guard = self.inner.client.lock().await;
         if let Some(ref c) = *guard {
             return Ok(Arc::clone(c));
         }
-        // Fail loud early if binary is missing (before spawn).
-        let _ = BridgeClient::resolve_binary()?;
-        let client = Arc::new(BridgeClient::connect_default().await?);
+        let client = spawn_bridge_via_driver().await?;
         *guard = Some(Arc::clone(&client));
         Ok(client)
     }
@@ -95,6 +131,18 @@ impl SandboxBridgePorts {
         let client = self.client().await?;
         client.call(method, params).await
     }
+}
+
+/// Canonical spawn path: [`SandboxDriver::spawn_bridge`].
+///
+/// Uses the probed sandbox backend when available; otherwise
+/// [`SandboxBackend::Direct`] so hermetic I/O can spawn
+/// `PLAYCUA_BRIDGE_BIN` / fake-playcua-bridge without a host wrapper.
+async fn spawn_bridge_via_driver() -> Result<Arc<BridgeClient>, BridgeError> {
+    use crate::modality::sandbox::SandboxBackend;
+    let mut driver = SandboxDriver::driver_for_probe(&SandboxModality::new())
+        .unwrap_or_else(|| SandboxDriver::new(SandboxBackend::Direct));
+    driver.spawn_bridge().await
 }
 
 fn map_bridge(err: BridgeError) -> String {
@@ -360,6 +408,9 @@ mod tests {
 
     #[tokio::test]
     async fn missing_bridge_fails_loud_no_native() {
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
+            .lock()
+            .expect("bridge env lock");
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/no-bridge");
         let ports = SandboxBridgePorts::lazy_connect();

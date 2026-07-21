@@ -1,10 +1,26 @@
-//! Hermetic SandboxDriver spawn — exercises Direct backend without host binaries.
+//! Hermetic SandboxDriver spawn — Direct backend guest + bridge alongside.
 //!
-//! FR-006 / ADR-006 M2: `PLAYCUA_SANDBOX_BACKEND=direct` must spawn a real
-//! child, expose tunnel stdio, and shut down within the 5s grace window.
+//! FR-006 / ADR-006: `PLAYCUA_SANDBOX_BACKEND=direct` must spawn a real
+//! guest, and `SandboxDriver::spawn_bridge` must start `PLAYCUA_BRIDGE_BIN`
+//! (fake-playcua-bridge) as a sibling JSON-RPC child — no native host I/O.
+
+use std::path::PathBuf;
 
 use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+fn fixture_bridge() -> PathBuf {
+    let mut candidates = vec![];
+    if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
+        candidates.push(PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+    }
+    candidates.push(PathBuf::from("native/tests/fixtures/fake-playcua-bridge.sh"));
+    candidates.push(PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+    candidates
+        .into_iter()
+        .find(|p| p.is_file())
+        .expect("fake-playcua-bridge.sh fixture must exist")
+}
 
 #[tokio::test]
 async fn direct_driver_spawn_tunnel_and_shutdown() {
@@ -50,4 +66,67 @@ async fn direct_driver_spawn_tunnel_and_shutdown() {
     assert_eq!(&buf, b"ping");
 
     driver.shutdown().await.expect("shutdown");
+}
+
+#[tokio::test]
+async fn direct_driver_spawn_bridge_alongside_guest() {
+    let bin = fixture_bridge();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin, perms).ok();
+    }
+    let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
+    std::env::set_var("PLAYCUA_BRIDGE_BIN", &bin);
+
+    let mut driver = SandboxDriver::new(SandboxBackend::Direct);
+    #[cfg(unix)]
+    let client = driver
+        .spawn_guest_with_bridge("sleep", &["30".into()])
+        .await
+        .expect("guest+bridge");
+    #[cfg(windows)]
+    let client = driver
+        .spawn_guest_with_bridge(
+            "cmd",
+            &["/C".into(), "ping -n 30 127.0.0.1 >NUL".into()],
+        )
+        .await
+        .expect("guest+bridge");
+
+    assert!(driver.child_id().is_some());
+    assert!(driver.bridge_client().is_some());
+    let pong = client
+        .call("ping", serde_json::Value::Null)
+        .await
+        .expect("bridge ping");
+    assert_eq!(pong["ok"], true);
+
+    driver.shutdown().await.expect("shutdown");
+    match prev {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+    }
+}
+
+#[tokio::test]
+async fn spawn_bridge_fails_loud_when_missing() {
+    let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
+    std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
+    let mut driver = SandboxDriver::new(SandboxBackend::Direct);
+    let err = match driver.spawn_bridge().await {
+        Ok(_) => panic!("must fail loud when bridge binary missing"),
+        Err(e) => e,
+    };
+    let msg = err.to_string();
+    assert!(
+        msg.contains("playcua-bridge") || msg.contains("PLAYCUA_BRIDGE_BIN"),
+        "unexpected: {msg}"
+    );
+    match prev {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+    }
 }
