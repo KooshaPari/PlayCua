@@ -9,6 +9,14 @@ license.workspace = true
 name = "playcua-native"
 path = "src/main.rs"
 
+# Guest-side sandbox I/O tunnel: stdio NDJSON JSON-RPC 2.0
+# (screenshot / input.* / windows.*). Spawned by SandboxDriver /
+# BridgeClient when PLAYCUA_BRIDGE_BIN is unset.
+# Build: cargo build --locked -p playcua-native --bin playcua-bridge
+[[bin]]
+name = "playcua-bridge"
+path = "src/bin/playcua-bridge.rs"
+
 [[bin]]
 name = "playcua-mcp"
 path = "src/bin/playcua-mcp.rs"

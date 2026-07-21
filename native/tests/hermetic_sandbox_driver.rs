@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 
+use playcua_native::ipc::BRIDGE_ENV_LOCK;
 use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -70,6 +71,7 @@ async fn direct_driver_spawn_tunnel_and_shutdown() {
 
 #[tokio::test]
 async fn direct_driver_spawn_bridge_alongside_guest() {
+    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
     let bin = fixture_bridge();
     #[cfg(unix)]
     {
@@ -113,6 +115,7 @@ async fn direct_driver_spawn_bridge_alongside_guest() {
 
 #[tokio::test]
 async fn spawn_bridge_fails_loud_when_missing() {
+    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
     std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
     let mut driver = SandboxDriver::new(SandboxBackend::Direct);
