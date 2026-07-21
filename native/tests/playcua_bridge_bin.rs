@@ -54,9 +54,12 @@ async fn real_bridge_bin_screenshot_input_windows() {
     let _guard = BRIDGE_ENV_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    // Hermetic screenshot envelope for CI; windows use real guest adapters.
+    // Hermetic screenshot/input for CI (avoid real OS injection); windows
+    // use real guest adapters.
     let prev_stub = std::env::var("PLAYCUA_BRIDGE_STUB_SCREENSHOT").ok();
+    let prev_input = std::env::var("PLAYCUA_BRIDGE_STUB_INPUT").ok();
     std::env::set_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT", "1");
+    std::env::set_var("PLAYCUA_BRIDGE_STUB_INPUT", "1");
 
     let bin = bridge_bin();
     let client = BridgeClient::spawn(&bin, &[])
@@ -68,6 +71,7 @@ async fn real_bridge_bin_screenshot_input_windows() {
         .await
         .expect("ping");
     assert_eq!(ping["screenshot"], "stub");
+    assert_eq!(ping["input"], "stub");
     assert_eq!(ping["windows"], "real");
 
     let ports = SandboxBridgePorts::with_client(Arc::new(client));
@@ -125,6 +129,10 @@ async fn real_bridge_bin_screenshot_input_windows() {
     match prev_stub {
         Some(v) => std::env::set_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT", v),
         None => std::env::remove_var("PLAYCUA_BRIDGE_STUB_SCREENSHOT"),
+    }
+    match prev_input {
+        Some(v) => std::env::set_var("PLAYCUA_BRIDGE_STUB_INPUT", v),
+        None => std::env::remove_var("PLAYCUA_BRIDGE_STUB_INPUT"),
     }
 }
 
