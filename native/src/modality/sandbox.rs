@@ -6,25 +6,35 @@
 //!
 //! ## Probes (in order)
 //!
-//! 1. `which sandbox-exec` (macOS built-in)
-//! 2. `which firejail` (Linux)
-//! 3. `which firecracker` (Linux)
-//! 4. `which runsc` (gVisor, Linux)
-//! 5. `$PLAYCUA_SANDBOX_BACKEND` env var override
+//! 1. `PLAYCUA_SANDBOX_BACKEND` env override (`direct` | backend name)
+//! 2. `which sandbox-exec` (macOS built-in)
+//! 3. `which firejail` (Linux)
+//! 4. `which firecracker` (Linux)
+//! 5. `which runsc` (gVisor, Linux)
 //!
-//! If any probe succeeds, the modality reports available. The actual
-//! launch-and-tunnel integration is a follow-up (ADR-006).
+//! If any probe succeeds, the modality reports available. Spawn + tunnel
+//! are handled by [`SandboxDriver`]; the Sandbox port and App modality
+//! dispatch wire that driver into real process lifecycle (see
+//! `modality::dispatch` and `ports::sandbox::WireSandboxAdapter`).
 
 use super::{Modality, ModalityKind};
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+/// Serializes tests that mutate `PLAYCUA_SANDBOX_BACKEND` (process-global).
+#[cfg(test)]
+pub static SANDBOX_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// The sandbox-modality probe.
 pub struct SandboxModality {
     cached: std::sync::OnceLock<Option<SandboxBackend>>,
 }
 
+/// Concrete sandbox backend selected by the probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SandboxBackend {
+pub enum SandboxBackend {
+    /// Run the guest command directly (no wrapper). Hermetic tests / CI.
+    Direct,
     SandboxExec,
     Firejail,
     Firecracker,
@@ -37,8 +47,13 @@ pub(crate) enum SandboxBackend {
 }
 
 impl SandboxBackend {
-    pub(crate) fn binary(self) -> &'static str {
+    /// Binary name used as argv[0] for wrapper backends.
+    ///
+    /// [`SandboxBackend::Direct`] has no wrapper binary — callers must use
+    /// [`SandboxDriver::spawn_guest`] and treat the guest as argv[0].
+    pub fn binary(self) -> &'static str {
         match self {
+            Self::Direct => "direct",
             Self::SandboxExec => "sandbox-exec",
             Self::Firejail => "firejail",
             Self::Firecracker => "firecracker",
@@ -55,11 +70,13 @@ impl SandboxModality {
         }
     }
 
-    fn probe(&self) -> Option<SandboxBackend> {
+    /// Probe (and cache) the first available backend.
+    pub fn probe(&self) -> Option<SandboxBackend> {
         self.cached
             .get_or_init(|| {
                 if let Ok(override_bin) = std::env::var("PLAYCUA_SANDBOX_BACKEND") {
                     return Some(match override_bin.as_str() {
+                        "direct" => SandboxBackend::Direct,
                         "sandbox-exec" => SandboxBackend::SandboxExec,
                         "firejail" => SandboxBackend::Firejail,
                         "firecracker" => SandboxBackend::Firecracker,
@@ -93,7 +110,7 @@ impl Modality for SandboxModality {
     }
 
     fn describe(&self) -> &'static str {
-        "sealed-host sandbox (sandbox-exec / firejail / firecracker / runsc)"
+        "sealed-host sandbox (sandbox-exec / firejail / firecracker / runsc / direct)"
     }
 
     fn is_available(&self) -> bool {
@@ -152,75 +169,27 @@ mod tests {
         // provides; we don't assert presence/absence, just the Option shape.
         let d = SandboxDriver::driver_for_probe(&SandboxModality::new());
         if let Some(d) = d {
-            // If a backend IS available, the binary must be on $PATH.
-            assert!(which(d.backend.binary()).is_some());
+            if d.backend() != SandboxBackend::Direct {
+                assert!(which(d.backend().binary()).is_some());
+            }
         }
     }
-}
 
-// ---------------------------------------------------------------------------
-// M2 dispatch brief — staged for next session
-// ---------------------------------------------------------------------------
-//
-// What `SandboxDriver` represents (per ADR-006 M2):
-//
-//   The probe in `SandboxModality` answers "is a backend on $PATH?".
-//   The *driver* answers "lazily spawn that backend, tunnel capture+input
-//   through it, and shut it down when the App drops the modality".
-//
-// Concretely, when a user invokes `playcua --modality sandbox screenshot`,
-// the App construction looks up `ModalityRegistry::select(Sandbox)`, gets a
-// `SandboxDriver` back, and the per-port dispatchers must:
-//   - `capture.screenshot()` route through the sandboxed child via
-//     stdin/stdout JSON-RPC (firejail/runsc/firecracker all support this)
-//   - `input.type/key/tap` route through the same tunnel
-//   - the `native` fallback path is replaced entirely — no host-OS calls
-//     leak into the sandbox.
-//
-// The struct below is intentionally skeletal — the next session fills in:
-//
-//   1. `spawn()`            — `tokio::process::Command::new(backend.binary())`
-//                             with backend-appropriate flags:
-//                               - firejail:   `--noprofile -- <cmd>`
-//                               - runsc:     `run --bundle=<oci> <cmd>`
-//                               - firecracker: requires a built rootfs +
-//                                             kernel + machine cfg; out of
-//                                             scope for the first M2 slice,
-//                                             gated behind `firecracker` cfg
-//                                             flag in `Cargo.toml`.
-//                               - sandbox-exec (macOS): `-D <profile> <cmd>`
-//
-//   2. `tunnel()`           — wraps `Child` stdio in a JSON-RPC client.
-//                             Reuses the existing `Dispatcher` codec in
-//                             `native/src/dispatch.rs`. The tunnel lives
-//                             behind a `RwLock<Option<Tunnel>>` so the
-//                             first method-call pays the spawn cost and
-//                             subsequent calls hit the cached handle.
-//
-//   3. `shutdown()`         — graceful child kill on App drop; sends
-//                             SIGTERM first, SIGKILL after 5 s. Implemented
-//                             in `Drop` for SandboxDriver.
-//
-//   4. tests               — hermetic test using a fake backend shell script
-//                             in `native/tests/fixtures/fake-sandbox.sh`
-//                             that echoes the JSON-RPC envelope back. This
-//                             is the only piece of M2 that adds a new file
-//                             to the workspace; everything else lives in
-//                             this module.
-//
-// Why a skeleton now and not a full impl: cargo test --workspace exceeds
-// the 5-minute shell tool timeout on this machine, so anything requiring
-// full test evidence belongs in the next session. The skeleton compiles
-// and exercises the API shape via the two unit tests above — those run
-// in well under a second.
+    #[test]
+    fn direct_backend_spawn_argv_is_direct_marker() {
+        let d = SandboxDriver::new(SandboxBackend::Direct);
+        assert_eq!(d.spawn_argv(), vec!["direct".to_string()]);
+    }
+}
 
 /// Lazy spawn-and-tunnel handle for a sandbox backend. Constructed via
 /// [`SandboxDriver::new`] (explicit) or [`SandboxDriver::driver_for_probe`]
 /// (uses the `SandboxModality` probe).
 ///
 /// On construction the driver is *lazy*: no child process is started until
-/// [`SandboxDriver::spawn`] is called. After `spawn`, the child is held
-/// inside `child` and torn down in `Drop` (SIGTERM, then SIGKILL after 5s).
+/// [`SandboxDriver::spawn`] / [`SandboxDriver::spawn_guest`] is called.
+/// After spawn, the child is held inside `child` and torn down in `Drop`
+/// (SIGTERM, then SIGKILL after 5s via [`SandboxDriver::shutdown`]).
 pub struct SandboxDriver {
     backend: SandboxBackend,
     child: Option<tokio::process::Child>,
@@ -244,7 +213,7 @@ impl SandboxDriver {
         })
     }
 
-    /// The argv head that `spawn()` will eventually exec. Exposed now so
+    /// The argv head that `spawn()` will eventually exec. Exposed so
     /// tests can verify the backend selection without spawning.
     pub fn spawn_argv(&self) -> Vec<String> {
         vec![self.backend.binary().to_string()]
@@ -255,33 +224,60 @@ impl SandboxDriver {
         self.backend
     }
 
-    /// Spawn the backend as a child process. After this call, the child's
-    /// stdio is available via [`SandboxDriver::tunnel`].
+    /// OS pid of the spawned child, if `spawn`/`spawn_guest` succeeded.
+    pub fn child_id(&self) -> Option<u32> {
+        self.child.as_ref()?.id()
+    }
+
+    /// Non-blocking status probe. `None` if not yet spawned.
+    pub fn try_status(&mut self) -> std::io::Result<Option<(bool, Option<i32>)>> {
+        let Some(child) = self.child.as_mut() else {
+            return Ok(None);
+        };
+        match child.try_wait()? {
+            None => Ok(Some((true, None))),
+            Some(status) => Ok(Some((false, status.code()))),
+        }
+    }
+
+    /// Spawn with the default guest (`cat`) so stdio stays open for tunneling.
+    /// Prefer [`Self::spawn_guest`] when the caller has a real command.
+    pub async fn spawn(&mut self) -> std::io::Result<()> {
+        self.spawn_guest("cat", &[]).await
+    }
+
+    /// Spawn the backend wrapping `program` + `args` as the guest command.
     ///
     /// Backend-specific flag handling per ADR-006 M2:
-    ///   - `Firejail`:    `--noprofile --` (no profile, then `<cmd>`)
-    ///   - `Runsc`/`GVisor`: `run --bundle=<oci-dir> <cmd>`
-    ///   - `SandboxExec`: `-D /tmp/playcua.sb <cmd>` (default profile path)
-    ///   - `Firecracker`: requires a built rootfs + kernel + machine cfg;
-    ///                    out of scope for this slice (gated behind a future
-    ///                    cfg flag in `Cargo.toml`).
+    ///   - `Direct`:      exec `program` directly (hermetic / CI)
+    ///   - `Firejail`:    `--noprofile -- <program> <args…>`
+    ///   - `Runsc`/`GVisor`: `run --bundle=<oci-dir> <program> <args…>`
+    ///   - `SandboxExec`: `-D /tmp/playcua.sb <program> <args…>`
+    ///   - `Firecracker`: out of scope; falls through to binary-only invoke
     ///
-    /// The `<cmd>` is the host-side PlayCua bridge; for this slice we exec
-    /// an inline `cat` so the child stays alive long enough to be torn down
-    /// by `Drop`. A future PR replaces `<cmd>` with the bridge launcher
-    /// from `native/src/bin/playcua-bridge.rs` (yet to be authored).
-    pub async fn spawn(&mut self) -> std::io::Result<()> {
-        let mut cmd = self.build_command();
-        // Stdio piped so the host side can read/write JSON-RPC envelopes.
+    /// After this call, the child's stdio is available via the `tunnel_*`
+    /// accessors for JSON-RPC bridging.
+    pub async fn spawn_guest(&mut self, program: &str, args: &[String]) -> std::io::Result<()> {
+        let mut cmd = self.build_command(program, args);
         cmd.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
+        #[cfg(unix)]
+        {
+            // Own process group so Drop / shutdown can SIGTERM the tree.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
+        }
         let child = cmd.spawn()?;
         self.child = Some(child);
         Ok(())
     }
 
-    /// Get a `tokio::process::ChildStdio` for the spawned child's stdin.
+    /// Get a `tokio::process::ChildStdin` for the spawned child's stdin.
     /// Returns `None` if `spawn()` has not been called.
     pub fn tunnel_stdin(&mut self) -> Option<tokio::process::ChildStdin> {
         self.child.as_mut()?.stdin.take()
@@ -300,16 +296,12 @@ impl SandboxDriver {
     }
 
     /// Explicit graceful shutdown. Sends SIGTERM first, then SIGKILL after
-    /// `kill_timeout`. Implemented in `Drop` too, but this is the
-    /// synchronous alternative for callers that want to await the cleanup.
+    /// 5s. Also implemented in `Drop` (best-effort, sync).
     pub async fn shutdown(&mut self) -> std::io::Result<()> {
         const KILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
         if let Some(mut child) = self.child.take() {
-            // Try graceful first.
             #[cfg(unix)]
             {
-                use tokio::process::Command;
-                // Best-effort SIGTERM via libc.
                 let pid = child.id().unwrap_or(0) as i32;
                 if pid > 0 {
                     unsafe {
@@ -319,10 +311,8 @@ impl SandboxDriver {
             }
             #[cfg(not(unix))]
             {
-                // On non-Unix, just kill directly.
                 let _ = child.start_kill();
             }
-            // Wait up to KILL_TIMEOUT, then SIGKILL.
             match tokio::time::timeout(KILL_TIMEOUT, child.wait()).await {
                 Ok(_) => return Ok(()),
                 Err(_) => {
@@ -334,36 +324,45 @@ impl SandboxDriver {
         Ok(())
     }
 
-    fn build_command(&self) -> tokio::process::Command {
-        let mut cmd = tokio::process::Command::new(self.backend.binary());
+    fn build_command(&self, program: &str, args: &[String]) -> tokio::process::Command {
         match self.backend {
+            SandboxBackend::Direct => {
+                let mut cmd = tokio::process::Command::new(program);
+                cmd.args(args);
+                cmd
+            }
             SandboxBackend::Firejail => {
-                cmd.arg("--noprofile").arg("--");
+                let mut cmd = tokio::process::Command::new(self.backend.binary());
+                cmd.arg("--noprofile").arg("--").arg(program).args(args);
+                cmd
             }
             SandboxBackend::Runsc | SandboxBackend::GVisor => {
-                cmd.arg("run").arg("--bundle=/tmp/playcua-oci");
+                let mut cmd = tokio::process::Command::new(self.backend.binary());
+                cmd.arg("run")
+                    .arg("--bundle=/tmp/playcua-oci")
+                    .arg(program)
+                    .args(args);
+                cmd
             }
             SandboxBackend::SandboxExec => {
-                cmd.arg("-D").arg("/tmp/playcua.sb");
+                let mut cmd = tokio::process::Command::new(self.backend.binary());
+                cmd.arg("-D")
+                    .arg("/tmp/playcua.sb")
+                    .arg(program)
+                    .args(args);
+                cmd
             }
             SandboxBackend::Firecracker => {
-                // Out of scope for this slice; fall through to a no-op
-                // backend-binary invocation. The next PR adds the cfg gate
-                // and rootfs/kernel args.
+                // Out of scope for this slice; invoke binary only.
+                tokio::process::Command::new(self.backend.binary())
             }
         }
-        // Inline command: a long-running `cat` keeps the child alive so
-        // Drop has something to kill. A future PR replaces this with the
-        // bridge launcher (`playcua-bridge --stdio`).
-        cmd.arg("cat");
-        cmd
     }
 }
 
 impl Drop for SandboxDriver {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
-            // Best-effort: ignore errors (we're in Drop).
             #[cfg(unix)]
             {
                 let pid = child.id().unwrap_or(0) as i32;
@@ -377,7 +376,6 @@ impl Drop for SandboxDriver {
             {
                 let _ = child.start_kill();
             }
-            // Don't await — Drop is sync. The OS reaps the child on exit.
             let _ = child.start_kill();
         }
     }

@@ -1,11 +1,13 @@
 @echo off
 REM fake-nvms.cmd — Windows equivalent of fake-nvms.sh.
-echo FAKE-NVMS-ALIVE rev-1
-REM Long sleep won't terminate under SIGTERM in Win32; this script
-REM just needs to be alive long enough for the test to spawn it,
-REM read stdout, then send start_kill via tokio. After that, the
-REM test reads the child's exit status — we don't actually need
-REM the script to exit on its own.
-timeout /t 30 /nobreak > nul
+if defined FAKE_MARKER (
+  echo %FAKE_MARKER%
+) else (
+  echo FAKE-NVMS-ALIVE rev-1
+)
+if "%HERMETIC_QUIET%"=="1" exit /b 0
+set SLEEP_SECS=%HERMETIC_SLEEP_SECS%
+if "%SLEEP_SECS%"=="" set SLEEP_SECS=30
+ping -n %SLEEP_SECS% 127.0.0.1 >nul
 echo FAKE-NVMS-DONE
 exit /b 0
