@@ -22,8 +22,8 @@ impl App {
     ///
     /// Native modality: platform capture/input/window + native process.
     /// Sandbox modality: [`WireSandboxAdapter`] / [`SandboxDriver`] for
-    /// process lifecycle; capture/input/window fail-loud until the stdio
-    /// bridge is connected (no silent native fallback).
+    /// process lifecycle; capture/input/window via stdio JSON-RPC to
+    /// `playcua-bridge` (fail-loud if missing — no silent native fallback).
     ///
     /// L5 #81: a `&FlagSet` is threaded through so platform adapters
     /// can opt into richer logging, dry-run mode, etc. via

@@ -7,6 +7,7 @@ pub mod analysis_adapter;
 pub mod enigo;
 pub mod process_adapter;
 pub mod sandbox;
+pub mod sandbox_bridge;
 pub mod tokio;
 pub mod xcap;
 

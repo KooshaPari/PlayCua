@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-/// JSON-RPC 2.0 request from caller.
-#[derive(Debug, Deserialize)]
+/// JSON-RPC 2.0 request from caller (also used by the sandbox bridge client).
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Request {
     pub jsonrpc: String,
     pub id: serde_json::Value,
@@ -13,23 +13,23 @@ pub struct Request {
     pub params: Option<serde_json::Value>,
 }
 
-/// JSON-RPC 2.0 response to caller.
-#[derive(Debug, Serialize)]
+/// JSON-RPC 2.0 response to caller (also parsed by the sandbox bridge client).
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Response {
     pub jsonrpc: String,
     pub id: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<RpcError>,
 }
 
 /// JSON-RPC 2.0 error object.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RpcError {
     pub code: i32,
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
 }
 

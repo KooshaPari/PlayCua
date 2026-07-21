@@ -1,11 +1,10 @@
 //! Per-port modality dispatch — wires selected modality into App ports.
 //!
-//! ADR-006 M2: when `--modality sandbox` is selected, process lifecycle
+//! ADR-006 M2+: when `--modality sandbox` is selected, process lifecycle
 //! routes through [`WireSandboxAdapter`] / [`SandboxDriver`]. Capture,
-//! input, and window ports deliberately do **not** fall back to native
-//! host adapters (that would leak host OS calls into the sandbox path).
-//! Until the stdio JSON-RPC bridge (`playcua-bridge`) is connected, those
-//! ports fail loud with an actionable error.
+//! input, and window ports tunnel via stdio JSON-RPC to `playcua-bridge`
+//! ([`SandboxBridgePorts`]) — never native host adapters (that would leak
+//! host OS calls into the sandbox path). Missing bridge → fail loud.
 //!
 //! Native modality keeps the existing platform adapters unchanged.
 
@@ -16,6 +15,7 @@ use async_trait::async_trait;
 use crate::adapters::analysis_adapter::NativeAnalysisAdapter;
 use crate::adapters::process_adapter::NativeProcessAdapter;
 use crate::adapters::sandbox::WireSandboxAdapter;
+use crate::adapters::sandbox_bridge::SandboxBridgePorts;
 use crate::domain::capture::{CaptureError, Frame};
 use crate::domain::input::{InputError, Key, KeyAction, MouseEvent};
 use crate::domain::process::{ProcessError, ProcessHandle, ProcessStatus};
@@ -38,7 +38,7 @@ pub struct PortBundle {
 }
 
 /// Build the port bundle for `selected`. Native uses platform adapters;
-/// Sandbox uses real driver-backed process dispatch + fail-loud I/O ports.
+/// Sandbox uses driver-backed process dispatch + JSON-RPC bridge I/O ports.
 pub fn build_ports(
     selected: &SelectedModality,
     native_capture: Arc<dyn CapturePort>,
@@ -114,22 +114,18 @@ fn build_sandbox_ports(selected: &SelectedModality) -> PortBundle {
     let process: Arc<dyn ProcessPort> = Arc::new(SandboxProcessAdapter {
         sandbox: Arc::clone(&sandbox),
     });
-    let tunnel_reason = format!(
-        "sandbox modality ({}): capture/input/window require the stdio \
-         JSON-RPC tunnel to playcua-bridge (not connected in this slice); \
-         process.launch is routed through SandboxDriver",
-        selected.detail
+    // Lazy stdio JSON-RPC bridge — resolves PLAYCUA_BRIDGE_BIN /
+    // playcua-bridge on first capture/input/window call; fail-loud if
+    // missing (never falls back to native host adapters).
+    let bridge = SandboxBridgePorts::lazy_connect();
+    tracing::info!(
+        detail = %selected.detail,
+        "sandbox I/O ports wired to playcua-bridge JSON-RPC tunnel"
     );
     PortBundle {
-        capture: Arc::new(FailLoudCapture {
-            reason: tunnel_reason.clone(),
-        }),
-        input: Arc::new(FailLoudInput {
-            reason: tunnel_reason.clone(),
-        }),
-        windows: Arc::new(FailLoudWindow {
-            reason: tunnel_reason,
-        }),
+        capture: bridge.capture(),
+        input: bridge.input(),
+        windows: bridge.windows(),
         process,
         analysis: Arc::new(NativeAnalysisAdapter::new()),
         sandbox: Some(sandbox),
@@ -361,6 +357,8 @@ mod tests {
 
     #[tokio::test]
     async fn sandbox_capture_does_not_silently_use_native() {
+        let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
+        std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
         let ports = build_ports(
             &selected(ModalityKind::Sandbox, true, "backend=direct"),
             Arc::new(NoopCapture),
@@ -372,6 +370,45 @@ mod tests {
             .capture_display(0)
             .await
             .expect_err("must not use native capture");
-        assert!(err.to_string().contains("tunnel") || err.to_string().contains("bridge"));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("bridge") || msg.contains("PLAYCUA_BRIDGE_BIN"),
+            "expected bridge fail-loud, got: {msg}"
+        );
+        match prev {
+            Some(v) => std::env::set_var("PLAYCUA_BRIDGE_BIN", v),
+            None => std::env::remove_var("PLAYCUA_BRIDGE_BIN"),
+        }
+    }
+
+    #[tokio::test]
+    async fn sandbox_bridge_ports_round_trip_injected_client() {
+        use crate::adapters::sandbox_bridge::SandboxBridgePorts;
+        use crate::ipc::bridge_client::BridgeClient;
+        use crate::ipc::mod_types::{read_request, write_response, Response};
+        use serde_json::json;
+        use tokio::io::BufReader;
+
+        let (client, mut peer) = BridgeClient::duplex_pair(64 * 1024);
+        let bridge = SandboxBridgePorts::with_client(Arc::new(client));
+        // Simulate what build_sandbox_ports does with a live bridge.
+        let capture = bridge.capture();
+        let server = tokio::spawn(async move {
+            let mut reader = BufReader::new(&mut peer);
+            let req = read_request(&mut reader).await.unwrap().unwrap();
+            assert_eq!(req.method, "screenshot");
+            write_response(
+                &mut peer,
+                &Response::ok(
+                    req.id,
+                    json!({"data":"YQ==","width":1,"height":1,"format":"png"}),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let frame = capture.capture_display(0).await.expect("bridged capture");
+        assert_eq!(frame.width, 1);
+        server.await.unwrap();
     }
 }
