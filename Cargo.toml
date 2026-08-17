@@ -18,7 +18,7 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 async-trait = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
 blake3 = "=1.8.5"
 fast_image_resize = "6"
@@ -38,7 +38,7 @@ pheno-tracing = { path = "crates/pheno-tracing", version = "*" }
 pheno-flags   = { path = "crates/pheno-flags", version = "*" }
 
 # MCP server (rmcp 1.x — official Model Context Protocol Rust SDK)
-rmcp = { version = "1.7", default-features = false, features = [
+rmcp = { version = "3.1", default-features = false, features = [
     "server",
     "macros",
     "transport-io",
