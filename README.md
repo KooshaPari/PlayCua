@@ -19,6 +19,27 @@
 > human operator. Bug reports and contributions are still welcome, but please
 > expect AI-generated code, comments, and documentation throughout.
 <!-- AI-DD-META:END -->
+
+## Work State
+
+| Field | Value |
+|---|---|
+| Status | **ACTIVE** (GitHub archive cleared; default branch `master`) |
+| Workspace version | `0.1.0` in root `Cargo.toml` — **no crates.io publish** |
+| crates.io | **Not published** (`playcua` / `playcua-native` do not exist; do not `cargo install playcua`) |
+| PyPI | **Not published** (`playcua` package is path/editable only) |
+| Install path | from source — see [Install](#install) |
+| Canonical members | `native` (`playcua-native`) + local `crates/pheno-{errors,tracing,flags}` |
+| Scaffold / not in workspace | `crates/playcua-bare`, `playcua-app`, ports, etc. (stubs; not `cargo build --workspace` members yet) |
+| Focus | T0 — install/publish honesty + workspace parse unblock |
+
+Progress: `███░░░░░░░` ~30% — native stdio JSON-RPC + Python bindings exist; publish/release and modality drivers are T1+.
+
+> Honest gap: install is **git/path only**. `master` previously failed `cargo` parse
+> (dangling `pheno-*` workspace deps); this T0 line restores parse + `cargo test --locked`
+> on the documented member set. Windows-msvc gate remains open PR #132. GitHub Actions
+> may fail for account billing — treat local `cargo test --locked` as the verify gate.
+
 > **Pinned references (Phenotype-org)**
 > - MSRV: see rust-toolchain.toml
 > - cargo-deny config: see deny.toml
@@ -30,9 +51,9 @@
 
 > **Architecture:** See the [Architecture](#architecture) section below for system design.
 
-> **bare-cua is deprecated.** The standalone `bare-cua` repository is frozen at
-> the 2026-06-08 snapshot. Active Rust crate, CLI, MCP server, bindings, docs,
-> and releases now live in this PlayCua workspace. See
+> **bare-cua is deprecated / renamed.** The old `KooshaPari/bare-cua` GitHub URL
+> redirects to this repository (`PlayCua`). Active Rust crate, CLI, MCP server,
+> bindings, docs, and releases live here. See
 > [DEPRECATED_BARE_CUA.md](DEPRECATED_BARE_CUA.md) for the Phase 1 merge record.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/KooshaPari/PlayCua/quality-gate.yml?branch=master&label=build)](https://github.com/KooshaPari/PlayCua/actions)
@@ -45,6 +66,40 @@ layer and replaces the `computer-server` with a **native Rust binary** that
 communicates via **stdio JSON-RPC 2.0**.
 
 No Docker. No VM. No network socket. Just a subprocess pipe.
+
+---
+
+## Install
+
+**Not on crates.io or PyPI yet.** Clone and build from this repo.
+
+### Rust workspace (native binary)
+
+```bash
+git clone https://github.com/KooshaPari/PlayCua.git
+cd PlayCua
+cargo test --locked
+cargo build --release -p playcua-native
+# Binary: target/release/playcua-native
+```
+
+Or without cloning first:
+
+```bash
+cargo install --git https://github.com/KooshaPari/PlayCua --locked --bin playcua-native
+```
+
+Requires Rust stable matching `rust-toolchain.toml` (MSRV intent: 1.75+).
+
+### Python bindings (editable)
+
+```bash
+cd python
+pip install -e .
+```
+
+The Python package expects a built `playcua-native` binary on disk (path passed to
+`Computer(...)`); it is not a wheels-published artifact yet.
 
 ---
 
@@ -148,15 +203,17 @@ native/tests/
 
 ## Quick Start
 
-### 1. Build the native binary
+After [Install](#install), use the built binary from the workspace `target/` tree
+(or the path from `cargo install --git`).
+
+### 1. Confirm the native binary
 
 ```bash
-cd native
-cargo build --release
-# Binary: native/target/release/playcua-native[.exe]
+cargo build --release -p playcua-native
+# Binary: target/release/playcua-native[.exe]
 ```
 
-### 2. Install the Python package
+### 2. Install the Python package (editable)
 
 ```bash
 cd python
@@ -170,7 +227,7 @@ import asyncio
 from playcua import Computer
 
 async def main():
-    async with Computer("./native/target/release/playcua-native") as c:
+    async with Computer("./target/release/playcua-native") as c:
         # Take a screenshot
         png_bytes = await c.screenshot()
         with open("screen.png", "wb") as f:

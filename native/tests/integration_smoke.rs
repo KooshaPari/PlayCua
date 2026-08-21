@@ -58,16 +58,19 @@ fn read_buf(buf: &SharedBuf) -> String {
 
 /// RAII guard that deletes the env vars it set on drop, so a test
 /// failure mid-flight does not leak the variables into the next
-/// test (cargo runs integration tests in parallel by default).
+/// test. Integration tests that touch `PLAYCUA_*` must also take
+/// [`ENV_LOCK`] — `FlagSet::from_env("PLAYCUA")` and the native
+/// binary scan *all* `PLAYCUA_*` vars, so parallel cargo-test
+/// workers otherwise race (garbage values from one test poison
+/// another).
 struct EnvGuard {
     keys: Vec<String>,
 }
 
 impl EnvGuard {
     fn set(key: &str, value: &str) -> Self {
-        // SAFETY: cargo test threads are coordinated via
-        // process-level env here, but each test uses distinct
-        // variable names so no two tests collide.
+        // SAFETY: callers hold `ENV_LOCK` for the duration of the
+        // test so no other smoke test mutates process env concurrently.
         std::env::set_var(key, value);
         Self {
             keys: vec![key.to_string()],
@@ -83,6 +86,11 @@ impl Drop for EnvGuard {
     }
 }
 
+/// Serializes every smoke test that reads or writes `PLAYCUA_*`
+/// process environment (or spawns `playcua-native`, which loads flags
+/// from the parent env at startup).
+static ENV_LOCK: Mutex<()> = Mutex::new(());
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -91,6 +99,7 @@ impl Drop for EnvGuard {
 /// stdin, and exits cleanly. This is the L5 #81 wiring claim #1.
 #[test]
 fn binary_starts_and_exits_cleanly_on_eof() {
+    let _env = ENV_LOCK.lock().expect("env lock");
     // The `CARGO_BIN_EXE_<name>` env var is set by Cargo for
     // integration tests of the same crate. See:
     //   https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
@@ -154,6 +163,7 @@ fn tracing_subscriber_captures_log_via_custom_make_writer() {
 /// L5 #81 wiring claim #3 (positive case).
 #[test]
 fn flags_round_trip_truthy_values_from_env() {
+    let _env = ENV_LOCK.lock().expect("env lock");
     let _a = EnvGuard::set("PLAYCUA_L5_81_A", "1");
     let _b = EnvGuard::set("PLAYCUA_L5_81_B", "true");
     let _c = EnvGuard::set("PLAYCUA_L5_81_C", "yes");
@@ -171,6 +181,7 @@ fn flags_round_trip_truthy_values_from_env() {
 /// falsy values. Negative case for wiring claim #3.
 #[test]
 fn flags_round_trip_falsy_values_from_env() {
+    let _env = ENV_LOCK.lock().expect("env lock");
     let _x = EnvGuard::set("PLAYCUA_L5_81_X", "0");
     let _y = EnvGuard::set("PLAYCUA_L5_81_Y", "false");
     let _z = EnvGuard::set("PLAYCUA_L5_81_Z", "no");
@@ -186,6 +197,7 @@ fn flags_round_trip_falsy_values_from_env() {
 /// (which the main binary maps to `AppError::Validation`).
 #[test]
 fn flags_reject_unparseable_value() {
+    let _env = ENV_LOCK.lock().expect("env lock");
     let _g = EnvGuard::set("PLAYCUA_L5_81_GARBAGE", "not-a-bool");
     let result = FlagSet::from_env("PLAYCUA");
     assert!(result.is_err(), "expected error for unparseable flag value");

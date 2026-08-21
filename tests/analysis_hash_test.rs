@@ -24,7 +24,7 @@ fn hash_of_identical_frames_matches() {
     // The dispatcher routes `analysis.hash` to
     // `AnalysisPort::hash(frame)`. The contract is that the hash
     // is a content address: identical bytes → identical hash.
-    let frame_bytes: Vec<u8> = b"playcua-native canonical test frame v1";
+    let frame_bytes: Vec<u8> = b"playcua-native canonical test frame v1".to_vec();
 
     let h1 = analysis_hash(&frame_bytes);
     let h2 = analysis_hash(&frame_bytes);
@@ -55,8 +55,8 @@ fn hash_of_different_frames_differs() {
     // The hash is content-addressable: distinct inputs must
     // produce distinct outputs. A future regression that returns
     // a constant (e.g. hard-coding "0x0") would fail this test.
-    let a = analysis_hash(b"frame A — distinct content");
-    let b = analysis_hash(b"frame B — different content");
+    let a = analysis_hash(b"frame A -- distinct content");
+    let b = analysis_hash(b"frame B -- different content");
 
     assert_ne!(a, b, "distinct inputs must produce distinct hashes");
     assert_eq!(a.len(), 64);

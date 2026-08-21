@@ -1,7 +1,7 @@
 //! Sandbox port — abstract boundary for sandboxed execution.
 //!
-//! Provides an async trait [`Sandbox`] with an in-memory test adapter
-//! and a wire adapter for production.
+//! Provides an async trait [`Sandbox`] with an in-memory test adapter.
+//! The production wire adapter lives in [`crate::adapters::sandbox`].
 
 use crate::domain::sandbox::{SandboxError, SandboxHandle, SandboxSpec, SandboxStatus};
 use async_trait::async_trait;
@@ -74,48 +74,6 @@ impl Sandbox for InMemorySandboxAdapter {
     }
 }
 
-/// Wire adapter for production — delegates to the real sandbox backend.
-///
-/// Currently a stub that compiles and returns an error; the real backend
-/// integration is a follow-up task.
-pub struct WireSandboxAdapter;
-
-impl WireSandboxAdapter {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for WireSandboxAdapter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Sandbox for WireSandboxAdapter {
-    async fn spawn(&self, spec: &SandboxSpec) -> Result<SandboxHandle, SandboxError> {
-        Err(SandboxError::SpawnFailed(format!(
-            "wire adapter not yet wired: {} {:?}",
-            spec.command, spec.args
-        )))
-    }
-
-    async fn status(&self, handle: &SandboxHandle) -> Result<SandboxStatus, SandboxError> {
-        Err(SandboxError::StatusFailed(format!(
-            "wire adapter not yet wired: {}",
-            handle.id
-        )))
-    }
-
-    async fn kill(&self, handle: &SandboxHandle) -> Result<(), SandboxError> {
-        Err(SandboxError::KillFailed(format!(
-            "wire adapter not yet wired: {}",
-            handle.id
-        )))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,17 +118,6 @@ mod tests {
         let result = adapter.status(&bogus).await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), SandboxError::NotFound(_)));
-    }
-
-    /// The wire adapter must compile and return errors.
-    #[tokio::test]
-    async fn wire_sandbox_compiles() {
-        let adapter = WireSandboxAdapter::new();
-        let spec = SandboxSpec {
-            command: "echo".into(),
-            args: vec!["test".into()],
-        };
-        assert!(adapter.spawn(&spec).await.is_err());
     }
 
     /// `Box<dyn Sandbox>` storage must compile (object safety).
