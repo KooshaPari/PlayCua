@@ -58,47 +58,6 @@ impl Modality for WslModality {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn kind_is_wsl() {
-        assert_eq!(WslModality::new().kind(), ModalityKind::Wsl);
-    }
-
-    #[test]
-    fn on_non_windows_always_unavailable() {
-        if !cfg!(target_os = "windows") {
-            assert!(!WslModality::new().is_available());
-            assert_eq!(WslModality::new().detail(), "not Windows");
-        }
-    }
-
-    #[test]
-    fn driver_spawn_argv_includes_wsl_exe() {
-        // The lazy driver must build an argv whose head is `wsl.exe` so the
-        // host shell can exec it directly. We don't actually spawn in tests
-        // (would need a real wsl.exe); just verify the argv shape.
-        //
-        // Note: on non-Windows hosts the driver still constructs but the
-        // exec will fail at App construction — that's the expected modality
-        // behavior (registry::select returns the Wsl entry only on Windows
-        // when `is_available` returns true).
-        let d = WslDriver::new("Ubuntu");
-        let argv = d.spawn_argv();
-        assert_eq!(argv.first().map(String::as_str), Some("wsl.exe"));
-    }
-
-    #[test]
-    fn driver_for_probe_returns_none_when_unavailable() {
-        // On non-Windows, Wsl is always unavailable → driver is None.
-        if !cfg!(target_os = "windows") {
-            assert!(WslDriver::driver_for_probe(&WslModality::new()).is_none());
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // M4 dispatch brief — staged for next session
 // ---------------------------------------------------------------------------
@@ -270,6 +229,47 @@ impl Drop for WslDriver {
             {
                 let _ = child.start_kill();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kind_is_wsl() {
+        assert_eq!(WslModality::new().kind(), ModalityKind::Wsl);
+    }
+
+    #[test]
+    fn on_non_windows_always_unavailable() {
+        if !cfg!(target_os = "windows") {
+            assert!(!WslModality::new().is_available());
+            assert_eq!(WslModality::new().detail(), "not Windows");
+        }
+    }
+
+    #[test]
+    fn driver_spawn_argv_includes_wsl_exe() {
+        // The lazy driver must build an argv whose head is `wsl.exe` so the
+        // host shell can exec it directly. We don't actually spawn in tests
+        // (would need a real wsl.exe); just verify the argv shape.
+        //
+        // Note: on non-Windows hosts the driver still constructs but the
+        // exec will fail at App construction — that's the expected modality
+        // behavior (registry::select returns the Wsl entry only on Windows
+        // when `is_available` returns true).
+        let d = WslDriver::new("Ubuntu");
+        let argv = d.spawn_argv();
+        assert_eq!(argv.first().map(String::as_str), Some("wsl.exe"));
+    }
+
+    #[test]
+    fn driver_for_probe_returns_none_when_unavailable() {
+        // On non-Windows, Wsl is always unavailable → driver is None.
+        if !cfg!(target_os = "windows") {
+            assert!(WslDriver::driver_for_probe(&WslModality::new()).is_none());
         }
     }
 }

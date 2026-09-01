@@ -45,7 +45,8 @@ fn hash_of_identical_frames_matches() {
     // it through verbatim; an upstream switch to uppercase hex
     // would surface here).
     assert!(
-        h1.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+        h1.chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
         "hash must be lowercase hex, got {h1}"
     );
 }

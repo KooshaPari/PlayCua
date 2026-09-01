@@ -214,10 +214,7 @@ impl InputPort for BridgeInput {
             KeyAction::Up => "up",
         };
         self.ports
-            .call(
-                "input.key",
-                json!({ "key": key.0, "action": action }),
-            )
+            .call("input.key", json!({ "key": key.0, "action": action }))
             .await
             .map_err(|e| InputError::InjectionFailed(map_bridge(e)))?;
         Ok(())
@@ -408,9 +405,7 @@ mod tests {
 
     #[tokio::test]
     async fn missing_bridge_fails_loud_no_native() {
-        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
-            .lock()
-            .expect("bridge env lock");
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/no-bridge");
         let ports = SandboxBridgePorts::lazy_connect();

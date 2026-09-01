@@ -18,8 +18,8 @@ impl X11WindowCapturer {
 #[cfg(target_os = "linux")]
 impl WindowCapturer for X11WindowCapturer {
     fn capture(&self, window_id: u64) -> Result<CapturedFrame, CaptureError> {
-        let (connection, screen_num) =
-            xcb::Connection::connect(None).map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
+        let (connection, screen_num) = xcb::Connection::connect(None)
+            .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
         let setup = connection.get_setup();
         let screen = setup
             .roots()
@@ -64,8 +64,8 @@ impl WindowCapturer for X11WindowCapturer {
     }
 
     fn list_windows(&self) -> Result<Vec<WindowDescriptor>, CaptureError> {
-        let (connection, screen_num) =
-            xcb::Connection::connect(None).map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
+        let (connection, screen_num) = xcb::Connection::connect(None)
+            .map_err(|e| CaptureError::CaptureFailed(e.to_string()))?;
         let setup = connection.get_setup();
         let screen = setup
             .roots()
@@ -212,17 +212,10 @@ mod tests {
 
     #[test]
     fn decodes_32bpp_bgra_pixels_into_rgba() {
-        let pixels = decode_zpixmap_bgra(
-            &[0x10, 0x20, 0x30, 0x40, 0xaa, 0xbb, 0xcc, 0xdd],
-            2,
-            1,
-            32,
-        )
-        .expect("32bpp conversion should succeed");
+        let pixels =
+            decode_zpixmap_bgra(&[0x10, 0x20, 0x30, 0x40, 0xaa, 0xbb, 0xcc, 0xdd], 2, 1, 32)
+                .expect("32bpp conversion should succeed");
 
-        assert_eq!(
-            pixels,
-            vec![0x30, 0x20, 0x10, 0x40, 0xcc, 0xbb, 0xaa, 0xdd]
-        );
+        assert_eq!(pixels, vec![0x30, 0x20, 0x10, 0x40, 0xcc, 0xbb, 0xaa, 0xdd]);
     }
 }

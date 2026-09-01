@@ -102,7 +102,9 @@ mod tests {
     fn encodes_rgba_pixels_as_png() {
         let rgba = [0_u8, 255, 0, 255];
         let frame = encode_rgba_png_frame(1, 1, &rgba).expect("png encoding should succeed");
-        let bytes = STANDARD.decode(frame.data).expect("frame data should be valid base64");
+        let bytes = STANDARD
+            .decode(frame.data)
+            .expect("frame data should be valid base64");
 
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
 

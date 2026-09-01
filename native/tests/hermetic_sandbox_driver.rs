@@ -11,16 +11,21 @@ use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn fixture_bridge() -> PathBuf {
+    let fixture = if cfg!(windows) {
+        "fake-playcua-bridge.cmd"
+    } else {
+        "fake-playcua-bridge.sh"
+    };
     let mut candidates = vec![];
     if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
-        candidates.push(PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+        candidates.push(PathBuf::from(m).join("tests/fixtures").join(fixture));
     }
-    candidates.push(PathBuf::from("native/tests/fixtures/fake-playcua-bridge.sh"));
-    candidates.push(PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+    candidates.push(PathBuf::from("native/tests/fixtures").join(fixture));
+    candidates.push(PathBuf::from("tests/fixtures").join(fixture));
     candidates
         .into_iter()
         .find(|p| p.is_file())
-        .expect("fake-playcua-bridge.sh fixture must exist")
+        .expect("platform fake-playcua-bridge fixture must exist")
 }
 
 #[tokio::test]
@@ -36,10 +41,7 @@ async fn direct_driver_spawn_tunnel_and_shutdown() {
     #[cfg(windows)]
     {
         driver
-            .spawn_guest(
-                "cmd",
-                &["/Q".into(), "/K".into(), "more".into()],
-            )
+            .spawn_guest("cmd", &["/Q".into(), "/K".into(), "more".into()])
             .await
             .expect("direct more spawn");
     }
@@ -71,7 +73,7 @@ async fn direct_driver_spawn_tunnel_and_shutdown() {
 
 #[tokio::test]
 async fn direct_driver_spawn_bridge_alongside_guest() {
-    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     let bin = fixture_bridge();
     #[cfg(unix)]
     {
@@ -91,10 +93,7 @@ async fn direct_driver_spawn_bridge_alongside_guest() {
         .expect("guest+bridge");
     #[cfg(windows)]
     let client = driver
-        .spawn_guest_with_bridge(
-            "cmd",
-            &["/C".into(), "ping -n 30 127.0.0.1 >NUL".into()],
-        )
+        .spawn_guest_with_bridge("cmd", &["/C".into(), "ping -n 30 127.0.0.1 >NUL".into()])
         .await
         .expect("guest+bridge");
 
@@ -115,7 +114,7 @@ async fn direct_driver_spawn_bridge_alongside_guest() {
 
 #[tokio::test]
 async fn spawn_bridge_fails_loud_when_missing() {
-    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
     std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
     let mut driver = SandboxDriver::new(SandboxBackend::Direct);

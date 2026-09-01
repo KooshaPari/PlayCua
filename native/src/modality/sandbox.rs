@@ -34,11 +34,11 @@ use crate::ipc::bridge_client::{BridgeClient, BridgeError};
 use std::path::PathBuf;
 use std::sync::Arc;
 #[cfg(test)]
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 /// Serializes tests that mutate `PLAYCUA_SANDBOX_BACKEND` (process-global).
 #[cfg(test)]
-pub static SANDBOX_ENV_LOCK: Mutex<()> = Mutex::new(());
+pub static SANDBOX_ENV_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// The sandbox-modality probe.
 pub struct SandboxModality {
@@ -149,52 +149,6 @@ fn which(bin: &str) -> Option<PathBuf> {
         }
     }
     None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_available_is_stable() {
-        let m = SandboxModality::new();
-        assert_eq!(m.is_available(), m.is_available());
-    }
-
-    #[test]
-    fn kind_is_sandbox() {
-        assert_eq!(SandboxModality::new().kind(), ModalityKind::Sandbox);
-    }
-
-    #[test]
-    fn driver_spawn_argv_includes_backend_binary() {
-        // The lazy driver must build an argv whose head is the backend
-        // binary (e.g. "firejail", "runsc") so the host shell can exec it
-        // directly. We don't actually spawn in tests (would need a real
-        // backend); just verify the argv shape.
-        let d = SandboxDriver::new(SandboxBackend::Firejail);
-        let argv = d.spawn_argv();
-        assert_eq!(argv.first().map(String::as_str), Some("firejail"));
-    }
-
-    #[test]
-    fn driver_for_probe_returns_none_when_unavailable() {
-        // When no backend is on $PATH, `driver_for_probe` should be None
-        // rather than panic. Tests run with whatever $PATH the harness
-        // provides; we don't assert presence/absence, just the Option shape.
-        let d = SandboxDriver::driver_for_probe(&SandboxModality::new());
-        if let Some(d) = d {
-            if d.backend() != SandboxBackend::Direct {
-                assert!(which(d.backend().binary()).is_some());
-            }
-        }
-    }
-
-    #[test]
-    fn direct_backend_spawn_argv_is_direct_marker() {
-        let d = SandboxDriver::new(SandboxBackend::Direct);
-        assert_eq!(d.spawn_argv(), vec!["direct".to_string()]);
-    }
 }
 
 /// Lazy spawn-and-tunnel handle for a sandbox backend. Constructed via
@@ -415,10 +369,7 @@ impl SandboxDriver {
             }
             SandboxBackend::SandboxExec => {
                 let mut cmd = tokio::process::Command::new(self.backend.binary());
-                cmd.arg("-D")
-                    .arg("/tmp/playcua.sb")
-                    .arg(program)
-                    .args(args);
+                cmd.arg("-D").arg("/tmp/playcua.sb").arg(program).args(args);
                 cmd
             }
             SandboxBackend::Firecracker => {
@@ -449,5 +400,51 @@ impl Drop for SandboxDriver {
             }
             let _ = child.start_kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_available_is_stable() {
+        let m = SandboxModality::new();
+        assert_eq!(m.is_available(), m.is_available());
+    }
+
+    #[test]
+    fn kind_is_sandbox() {
+        assert_eq!(SandboxModality::new().kind(), ModalityKind::Sandbox);
+    }
+
+    #[test]
+    fn driver_spawn_argv_includes_backend_binary() {
+        // The lazy driver must build an argv whose head is the backend
+        // binary (e.g. "firejail", "runsc") so the host shell can exec it
+        // directly. We don't actually spawn in tests (would need a real
+        // backend); just verify the argv shape.
+        let d = SandboxDriver::new(SandboxBackend::Firejail);
+        let argv = d.spawn_argv();
+        assert_eq!(argv.first().map(String::as_str), Some("firejail"));
+    }
+
+    #[test]
+    fn driver_for_probe_returns_none_when_unavailable() {
+        // When no backend is on $PATH, `driver_for_probe` should be None
+        // rather than panic. Tests run with whatever $PATH the harness
+        // provides; we don't assert presence/absence, just the Option shape.
+        let d = SandboxDriver::driver_for_probe(&SandboxModality::new());
+        if let Some(d) = d {
+            if d.backend() != SandboxBackend::Direct {
+                assert!(which(d.backend().binary()).is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn direct_backend_spawn_argv_is_direct_marker() {
+        let d = SandboxDriver::new(SandboxBackend::Direct);
+        assert_eq!(d.spawn_argv(), vec!["direct".to_string()]);
     }
 }

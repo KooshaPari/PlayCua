@@ -10,7 +10,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 
 use serde_json::{json, Value};
 use thiserror::Error;
@@ -22,12 +21,14 @@ use super::mod_types::{Request, Response};
 
 /// Serializes tests that mutate `PLAYCUA_BRIDGE_BIN` (process-global).
 /// Available outside `cfg(test)` so integration tests can take the same lock.
-pub static BRIDGE_ENV_LOCK: Mutex<()> = Mutex::new(());
+pub static BRIDGE_ENV_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
 
 /// Errors from the sandbox JSON-RPC bridge client.
 #[derive(Debug, Error)]
 pub enum BridgeError {
-    #[error("playcua-bridge not found: set PLAYCUA_BRIDGE_BIN or install playcua-bridge on $PATH ({0})")]
+    #[error(
+        "playcua-bridge not found: set PLAYCUA_BRIDGE_BIN or install playcua-bridge on $PATH ({0})"
+    )]
     BinaryMissing(String),
     #[error("bridge spawn failed: {0}")]
     SpawnFailed(String),
@@ -49,7 +50,7 @@ pub struct BridgeClient {
 
 enum BridgeIo {
     Child {
-        child: Child,
+        child: Box<Child>,
         stdin: ChildStdin,
         stdout: BufReader<ChildStdout>,
     },
@@ -106,7 +107,7 @@ impl BridgeClient {
             .ok_or_else(|| BridgeError::SpawnFailed("stdout missing".into()))?;
         Ok(Self {
             io: AsyncMutex::new(BridgeIo::Child {
-                child,
+                child: Box::new(child),
                 stdin,
                 stdout: BufReader::new(stdout),
             }),
@@ -143,11 +144,7 @@ impl BridgeClient {
             jsonrpc: "2.0".into(),
             id: json!(id),
             method: method.into(),
-            params: if params.is_null() {
-                None
-            } else {
-                Some(params)
-            },
+            params: if params.is_null() { None } else { Some(params) },
         };
         let mut guard = self.io.lock().await;
         write_request_line(&mut guard, &req).await?;
@@ -303,7 +300,7 @@ mod tests {
 
     #[test]
     fn resolve_binary_fails_loud_when_missing() {
-        let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+        let _guard = BRIDGE_ENV_LOCK.blocking_lock();
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge-xyz");
         let err = BridgeClient::resolve_binary().expect_err("must fail");

@@ -41,7 +41,9 @@ async fn main() -> ExitCode {
     let fixture_dir = match locate_fixture_dir() {
         Some(p) => p,
         None => {
-            eprintln!("FATAL: could not locate tests/fixtures/ relative to CWD or CARGO_MANIFEST_DIR");
+            eprintln!(
+                "FATAL: could not locate tests/fixtures/ relative to CWD or CARGO_MANIFEST_DIR"
+            );
             return ExitCode::from(1);
         }
     };
@@ -66,7 +68,8 @@ async fn main() -> ExitCode {
     // would block waiting for stdin. Use a non-interactive variant:
     // the fixture detects `HERMETIC_QUIET=1` and exits immediately.
     let mut cmd = Command::new(&fixture);
-    cmd.env("HERMETIC_QUIET", "1").env("FAKE_MARKER", FAKE_ALIVE);
+    cmd.env("HERMETIC_QUIET", "1")
+        .env("FAKE_MARKER", FAKE_ALIVE);
 
     // Mirror the modality drivers' spawn pattern.
     cmd.stdin(std::process::Stdio::piped())
@@ -108,9 +111,7 @@ async fn main() -> ExitCode {
         let _ = child.start_kill();
         return ExitCode::from(1);
     }
-    eprintln!(
-        "[hermetic] spawn test — OK (marker found, child exited normally)"
-    );
+    eprintln!("[hermetic] spawn test — OK (marker found, child exited normally)");
 
     // Best-effort wait so we don't leak the child.
     let _ = child.wait().await;
@@ -157,6 +158,7 @@ async fn main() -> ExitCode {
         }
     };
 
+    #[cfg(unix)]
     let pid = child.id().expect("child pid");
     #[cfg(unix)]
     let pgid = unsafe { libc::getpgid(pid as i32) };
@@ -193,11 +195,7 @@ async fn main() -> ExitCode {
 
     // Wait up to 5s for the child to exit.
     let start = std::time::Instant::now();
-    let status = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        child.wait(),
-    )
-    .await;
+    let status = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
 
     match status {
         Ok(Ok(s)) => {
@@ -220,9 +218,7 @@ async fn main() -> ExitCode {
             ExitCode::from(1)
         }
         Err(_) => {
-            eprintln!(
-                "FATAL: child did NOT exit within 5s of SIGTERM — kill pattern broken"
-            );
+            eprintln!("FATAL: child did NOT exit within 5s of SIGTERM — kill pattern broken");
             let _ = child.kill().await;
             ExitCode::from(1)
         }
@@ -236,7 +232,11 @@ fn locate_fixture_dir() -> Option<PathBuf> {
         return Some(cwd_tests);
     }
     // 2. CWD/native/tests/fixtures (if running from crate root)
-    let native_tests = env::current_dir().ok()?.join("native").join("tests").join("fixtures");
+    let native_tests = env::current_dir()
+        .ok()?
+        .join("native")
+        .join("tests")
+        .join("fixtures");
     if native_tests.exists() {
         return Some(native_tests);
     }

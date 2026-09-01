@@ -122,8 +122,7 @@ fn build_filter(directives: &[(String, String)]) -> EnvFilter {
     // per-target overrides on top — `from_str` returns Err on a malformed
     // directive, but malformed directives here would mean a bug in
     // the call site, so we panic to surface it during dev.
-    let mut filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let mut filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     for (target, level) in directives {
         let directive = format!("{target}={level}");
         filter = filter.add_directive(

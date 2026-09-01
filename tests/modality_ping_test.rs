@@ -90,8 +90,14 @@ fn ping_envelope_has_four_modality_fields() {
         "available": true,
     });
 
-    let obj = envelope.as_object().expect("envelope must be a JSON object");
-    assert_eq!(obj.len(), 4, "modality envelope must have 4 keys, got {obj:?}");
+    let obj = envelope
+        .as_object()
+        .expect("envelope must be a JSON object");
+    assert_eq!(
+        obj.len(),
+        4,
+        "modality envelope must have 4 keys, got {obj:?}"
+    );
     assert!(obj.contains_key("kind"));
     assert!(obj.contains_key("describe"));
     assert!(obj.contains_key("detail"));

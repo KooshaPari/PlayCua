@@ -327,26 +327,30 @@ mod tests {
 
     #[tokio::test]
     async fn sandbox_available_routes_process_through_driver() {
-        let _guard = crate::modality::sandbox::SANDBOX_ENV_LOCK
-            .lock()
-            .expect("sandbox env lock");
-        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
-            .lock()
-            .expect("bridge env lock");
+        let _guard = crate::modality::sandbox::SANDBOX_ENV_LOCK.lock().await;
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
         let prev_bridge = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "direct");
         let bin = {
+            let fixture = if cfg!(windows) {
+                "fake-playcua-bridge.cmd"
+            } else {
+                "fake-playcua-bridge.sh"
+            };
             let mut candidates = vec![];
             if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
-                candidates
-                    .push(std::path::PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+                candidates.push(
+                    std::path::PathBuf::from(m)
+                        .join("tests/fixtures")
+                        .join(fixture),
+                );
             }
-            candidates.push(std::path::PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+            candidates.push(std::path::PathBuf::from("tests/fixtures").join(fixture));
             candidates
                 .into_iter()
                 .find(|p| p.is_file())
-                .expect("fake-playcua-bridge.sh")
+                .expect("platform fake-playcua-bridge fixture")
         };
         #[cfg(unix)]
         {
@@ -366,8 +370,8 @@ mod tests {
         #[cfg(unix)]
         let handle = ProcessHandle::new("sleep").with_args(vec!["30".into()]);
         #[cfg(windows)]
-        let handle =
-            ProcessHandle::new("cmd").with_args(vec!["/C".into(), "ping -n 30 127.0.0.1 >NUL".into()]);
+        let handle = ProcessHandle::new("cmd")
+            .with_args(vec!["/C".into(), "ping -n 30 127.0.0.1 >NUL".into()]);
         let pid = ports
             .process
             .launch(handle)
@@ -387,9 +391,7 @@ mod tests {
 
     #[tokio::test]
     async fn sandbox_capture_does_not_silently_use_native() {
-        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK
-            .lock()
-            .expect("bridge env lock");
+        let _bguard = crate::ipc::bridge_client::BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_BRIDGE_BIN", "/nonexistent/playcua-bridge");
         let ports = build_ports(

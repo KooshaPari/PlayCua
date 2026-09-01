@@ -52,11 +52,8 @@ impl FlagSet {
     /// Suffixes under `<PREFIX>_` that are **config strings**, not boolean
     /// flags. Skipped by [`FlagSet::from_env`] so modality/sandbox/nvms
     /// env vars can coexist with `PLAYCUA_VERBOSE` / `PLAYCUA_DRY_RUN`.
-    const NON_FLAG_SUFFIXES: &'static [&'static str] = &[
-        "MODALITY",
-        "SANDBOX_BACKEND",
-        "NVMS_CONFIG",
-    ];
+    const NON_FLAG_SUFFIXES: &'static [&'static str] =
+        &["MODALITY", "SANDBOX_BACKEND", "NVMS_CONFIG"];
 
     /// Load every `<PREFIX>_<KEY>` env var into a `FlagSet`.
     ///
@@ -75,7 +72,7 @@ impl FlagSet {
                     // `<PREFIX>_` with no key — skip silently.
                     continue;
                 }
-                if Self::NON_FLAG_SUFFIXES.iter().any(|s| *s == suffix) {
+                if Self::NON_FLAG_SUFFIXES.contains(&suffix) {
                     continue;
                 }
                 let parsed = parse_bool(&v).ok_or_else(|| FlagError::InvalidValue {
@@ -220,15 +217,11 @@ mod tests {
 
     #[test]
     fn len_and_iter_match_insertions() {
-        with_env(
-            "PLAYCUA",
-            &[("PLAYCUA_X", "1"), ("PLAYCUA_Y", "0")],
-            || {
-                let flags = FlagSet::from_env("PLAYCUA").unwrap();
-                assert_eq!(flags.len(), 2);
-                let pairs: Vec<_> = flags.iter().collect();
-                assert_eq!(pairs, vec![("X", true), ("Y", false)]);
-            },
-        );
+        with_env("PLAYCUA", &[("PLAYCUA_X", "1"), ("PLAYCUA_Y", "0")], || {
+            let flags = FlagSet::from_env("PLAYCUA").unwrap();
+            assert_eq!(flags.len(), 2);
+            let pairs: Vec<_> = flags.iter().collect();
+            assert_eq!(pairs, vec![("X", true), ("Y", false)]);
+        });
     }
 }

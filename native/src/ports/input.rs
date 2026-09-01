@@ -15,7 +15,8 @@ pub trait InputCapture: Send + Sync {
     /// Block until the next input event is available.
     async fn next_event(&self) -> Result<CapturedEvent, InputCaptureError>;
     /// Poll up to `max_events` without blocking.
-    async fn poll_events(&self, max_events: usize) -> Result<Vec<CapturedEvent>, InputCaptureError>;
+    async fn poll_events(&self, max_events: usize)
+        -> Result<Vec<CapturedEvent>, InputCaptureError>;
 }
 
 /// In-memory adapter for testing — stores a queue of synthetic events that
@@ -52,10 +53,15 @@ impl Default for InMemoryInputCaptureAdapter {
 impl InputCapture for InMemoryInputCaptureAdapter {
     async fn next_event(&self) -> Result<CapturedEvent, InputCaptureError> {
         let mut events = self.events.lock().await;
-        events.pop().ok_or_else(|| InputCaptureError::CaptureFailed("no events".into()))
+        events
+            .pop()
+            .ok_or_else(|| InputCaptureError::CaptureFailed("no events".into()))
     }
 
-    async fn poll_events(&self, max_events: usize) -> Result<Vec<CapturedEvent>, InputCaptureError> {
+    async fn poll_events(
+        &self,
+        max_events: usize,
+    ) -> Result<Vec<CapturedEvent>, InputCaptureError> {
         let mut events = self.events.lock().await;
         let count = max_events.min(events.len());
         let result = events.drain(..count).rev().collect();
@@ -84,10 +90,15 @@ impl Default for WireInputCaptureAdapter {
 #[async_trait]
 impl InputCapture for WireInputCaptureAdapter {
     async fn next_event(&self) -> Result<CapturedEvent, InputCaptureError> {
-        Err(InputCaptureError::DeviceUnavailable("wire adapter not yet wired".into()))
+        Err(InputCaptureError::DeviceUnavailable(
+            "wire adapter not yet wired".into(),
+        ))
     }
 
-    async fn poll_events(&self, _max_events: usize) -> Result<Vec<CapturedEvent>, InputCaptureError> {
+    async fn poll_events(
+        &self,
+        _max_events: usize,
+    ) -> Result<Vec<CapturedEvent>, InputCaptureError> {
         Ok(Vec::new())
     }
 }

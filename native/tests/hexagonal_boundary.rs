@@ -157,10 +157,7 @@ impl WindowPort for MockWindowPort {
     async fn list_windows(&self) -> Result<Vec<WindowInfo>, WindowError> {
         Ok(self.windows.lock().unwrap().clone())
     }
-    async fn find_window(
-        &self,
-        filter: WindowFilter,
-    ) -> Result<Option<WindowInfo>, WindowError> {
+    async fn find_window(&self, filter: WindowFilter) -> Result<Option<WindowInfo>, WindowError> {
         Ok(self
             .windows
             .lock()
@@ -247,14 +244,16 @@ impl AnalysisPort for MockAnalysisPort {
 
 /// Wire all five mocks into a `Dispatcher`, returning both the dispatcher
 /// and the mock handles for assertion.
-fn build_dispatcher() -> (
+type DispatcherFixture = (
     Dispatcher,
     Arc<MockCapturePort>,
     Arc<MockInputPort>,
     Arc<MockWindowPort>,
     Arc<MockProcessPort>,
     Arc<MockAnalysisPort>,
-) {
+);
+
+fn build_dispatcher() -> DispatcherFixture {
     let capture = Arc::new(MockCapturePort::default());
     let input = Arc::new(MockInputPort::default());
     let windows = Arc::new(MockWindowPort::default());
@@ -298,12 +297,17 @@ fn build_dispatcher() -> (
 #[tokio::test]
 async fn ping_works_with_only_mock_adapters() {
     let (dispatcher, _capture, _input, _windows, _process, _analysis) = build_dispatcher();
-    let resp = dispatcher.dispatch(rpc(1, "ping", serde_json::json!({}))).await;
+    let resp = dispatcher
+        .dispatch(rpc(1, "ping", serde_json::json!({})))
+        .await;
     let body = result(&resp);
     assert_eq!(body["ok"], serde_json::json!(true));
     assert_eq!(body["modality"]["kind"], serde_json::json!("native"));
     assert_eq!(body["modality"]["describe"], serde_json::json!("test-mock"));
-    assert_eq!(body["modality"]["detail"], serde_json::json!("hexagonal-boundary-test"));
+    assert_eq!(
+        body["modality"]["detail"],
+        serde_json::json!("hexagonal-boundary-test")
+    );
     assert_eq!(body["modality"]["available"], serde_json::json!(true));
 }
 
@@ -448,7 +452,7 @@ async fn process_methods_route_through_process_port_trait() {
     let pid: u32 = body["pid"].as_u64().unwrap() as u32;
     assert!(pid >= 1000, "pid should be allocated by mock port");
 
-    let handle = &process.launches.lock().unwrap()[0];
+    let handle = process.launches.lock().unwrap()[0].clone();
     assert_eq!(handle.path, "/bin/echo");
     assert_eq!(handle.args, vec!["hi".to_string()]);
 
@@ -490,7 +494,11 @@ async fn analysis_methods_route_through_analysis_port_trait() {
     assert_eq!(*analysis.diff_calls.lock().unwrap(), 1);
 
     let resp = dispatcher
-        .dispatch(rpc(41, "analysis.hash", serde_json::json!({"image": "AAAA"})))
+        .dispatch(rpc(
+            41,
+            "analysis.hash",
+            serde_json::json!({"image": "AAAA"}),
+        ))
         .await;
     let body = result(&resp);
     assert_eq!(body["hash"], serde_json::json!("deadbeef00000000"));

@@ -79,8 +79,7 @@ fn deny_unused_must_use_is_active() {
     // the `Result` return type), so any caller that drops the
     // value with `let _ = must_use_result_fn();` would be a
     // compile error under `#[deny(unused_must_use)]`.
-    const _TYPE_WITNESS_MUST_USE: fn() -> Result<u32, std::num::ParseIntError> =
-        must_use_result_fn;
+    const _TYPE_WITNESS_MUST_USE: fn() -> Result<u32, std::num::ParseIntError> = must_use_result_fn;
 
     // Runtime witness: the happy path actually returns Ok(42),
     // and a deliberately-bad input returns Err.
@@ -192,8 +191,7 @@ fn result_returning_fns_are_typed() {
     // Const-evaluated type witness: a refactor that swaps
     // `Result<u32, ParseIntError>` for `Option<u32>` would fail
     // to compile this binding, which is the tripwire.
-    const _TYPE_WITNESS_RESULT: fn(&str) -> Result<u32, std::num::ParseIntError> =
-        parse_int;
+    const _TYPE_WITNESS_RESULT: fn(&str) -> Result<u32, std::num::ParseIntError> = parse_int;
 
     // Runtime witnesses: the happy path returns Ok, the error
     // path returns Err, and a second happy call proves the

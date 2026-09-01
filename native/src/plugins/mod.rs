@@ -183,7 +183,10 @@ mod tests {
     #[tokio::test]
     async fn test_typed_plugin_rejects_invalid_params() {
         let plugin = EchoPlugin;
-        let err = plugin.handle(json!({ "wrong": "shape" })).await.unwrap_err();
+        let err = plugin
+            .handle(json!({ "wrong": "shape" }))
+            .await
+            .unwrap_err();
         assert!(matches!(err, PluginError::InvalidParams(_)));
     }
 
