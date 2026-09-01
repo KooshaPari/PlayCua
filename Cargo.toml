@@ -33,9 +33,9 @@ xcap = "0.9"
 #                    that lived in main.rs before this change).
 #   - pheno-flags:   env-driven boolean feature flags (loaded from
 #                    `PLAYCUA_*` env vars at startup).
-pheno-errors  = { path = "crates/pheno-errors", version = "*" }
-pheno-tracing = { path = "crates/pheno-tracing", version = "*" }
-pheno-flags   = { path = "crates/pheno-flags", version = "*" }
+pheno-errors  = { path = "crates/pheno-errors", version = "0.1.0" }
+pheno-tracing = { path = "crates/pheno-tracing", version = "0.1.0" }
+pheno-flags   = { path = "crates/pheno-flags", version = "0.1.0" }
 
 # MCP server (rmcp 1.x — official Model Context Protocol Rust SDK)
 rmcp = { version = "3.1", default-features = false, features = [
@@ -132,4 +132,3 @@ ignore = []
 # under disk pressure when other L3 agents are building in parallel
 # (cf. FLEET_DAG_v3 §90.4). 0 = auto (= ncpu).
 jobs = 1
-
