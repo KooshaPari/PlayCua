@@ -343,7 +343,9 @@ impl ContainerDriver {
 
 impl Drop for ContainerDriver {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
+        if let Some(child) = self.child.take() {
+            #[cfg(not(unix))]
+            let mut child = child;
             #[cfg(unix)]
             {
                 let pid = child.id().unwrap_or(0) as i32;

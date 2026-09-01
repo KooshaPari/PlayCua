@@ -30,19 +30,23 @@ impl WindowPort for EwmhAdapter {
         tokio::task::spawn_blocking(|| -> Result<Vec<WindowInfo>, WindowError> {
             let windows =
                 xcap::Window::all().map_err(|e| WindowError::EnumerationFailed(e.to_string()))?;
-            Ok(windows
+            windows
                 .into_iter()
-                .map(|w| WindowInfo {
-                    hwnd: w.id() as usize,
-                    title: w.title().to_string(),
-                    pid: w.pid(),
-                    x: w.x(),
-                    y: w.y(),
-                    width: w.width() as i32,
-                    height: w.height() as i32,
-                    visible: true, // xcap only returns visible windows
+                .map(|w| {
+                    let map_error =
+                        |e: xcap::XCapError| WindowError::EnumerationFailed(e.to_string());
+                    Ok(WindowInfo {
+                        hwnd: w.id().map_err(map_error)? as usize,
+                        title: w.title().map_err(map_error)?,
+                        pid: w.pid().map_err(map_error)?,
+                        x: w.x().map_err(map_error)?,
+                        y: w.y().map_err(map_error)?,
+                        width: w.width().map_err(map_error)? as i32,
+                        height: w.height().map_err(map_error)? as i32,
+                        visible: true, // xcap only returns visible windows
+                    })
                 })
-                .collect())
+                .collect()
         })
         .await
         .map_err(|e| WindowError::Failed(format!("spawn_blocking panic: {e}")))?

@@ -4,7 +4,7 @@ use crate::domain::capture::CaptureError;
 use crate::ports::{CapturedFrame, WindowCapturer, WindowDescriptor};
 
 #[cfg(target_os = "linux")]
-use xcb::xproto;
+use xcb::{x, Xid, XidNew};
 
 #[derive(Debug, Default)]
 pub struct X11WindowCapturer;
@@ -25,23 +25,25 @@ impl WindowCapturer for X11WindowCapturer {
             .roots()
             .nth(screen_num as usize)
             .ok_or_else(|| CaptureError::CaptureFailed("X11 screen not found".to_string()))?;
-        let drawable = window_id as xproto::Drawable;
-        let geometry = xproto::get_geometry(&connection, drawable)
-            .get_reply()
+        let window = x::Window::new(window_id as u32);
+        let drawable = x::Drawable::Window(window);
+        let geometry_cookie = connection.send_request(&x::GetGeometry { drawable });
+        let geometry = connection
+            .wait_for_reply(geometry_cookie)
             .map_err(|e| CaptureError::CaptureFailed(format!("get_geometry: {e}")))?;
 
-        let reply = xproto::get_image(
-            &connection,
-            xproto::IMAGE_FORMAT_Z_PIXMAP as u8,
+        let image_cookie = connection.send_request(&x::GetImage {
+            format: x::ImageFormat::ZPixmap,
             drawable,
-            0,
-            0,
-            geometry.width(),
-            geometry.height(),
-            u32::MAX,
-        )
-        .get_reply()
-        .map_err(|e| CaptureError::CaptureFailed(format!("get_image: {e}")))?;
+            x: 0,
+            y: 0,
+            width: geometry.width(),
+            height: geometry.height(),
+            plane_mask: u32::MAX,
+        });
+        let reply = connection
+            .wait_for_reply(image_cookie)
+            .map_err(|e| CaptureError::CaptureFailed(format!("get_image: {e}")))?;
 
         let bits_per_pixel = bits_per_pixel_for_depth(screen.root_depth()).ok_or_else(|| {
             CaptureError::CaptureFailed(format!(
@@ -71,8 +73,11 @@ impl WindowCapturer for X11WindowCapturer {
             .roots()
             .nth(screen_num as usize)
             .ok_or_else(|| CaptureError::CaptureFailed("X11 screen not found".to_string()))?;
-        let tree = xproto::query_tree(&connection, screen.root())
-            .get_reply()
+        let tree_cookie = connection.send_request(&x::QueryTree {
+            window: screen.root(),
+        });
+        let tree = connection
+            .wait_for_reply(tree_cookie)
             .map_err(|e| CaptureError::CaptureFailed(format!("query_tree: {e}")))?;
 
         tree.children()
@@ -101,15 +106,18 @@ impl WindowCapturer for X11WindowCapturer {
 #[cfg(target_os = "linux")]
 fn describe_window(
     connection: &xcb::Connection,
-    window: xproto::Window,
+    window: x::Window,
 ) -> Result<Option<WindowDescriptor>, CaptureError> {
-    let geometry = match xproto::get_geometry(connection, window).get_reply() {
+    let geometry_cookie = connection.send_request(&x::GetGeometry {
+        drawable: x::Drawable::Window(window),
+    });
+    let geometry = match connection.wait_for_reply(geometry_cookie) {
         Ok(geometry) => geometry,
         Err(_) => return Ok(None),
     };
     let title = get_window_title(connection, window)?;
     Ok(Some(WindowDescriptor {
-        id: window as u64,
+        id: u64::from(window.resource_id()),
         title,
         width: geometry.width() as u32,
         height: geometry.height() as u32,
@@ -119,21 +127,20 @@ fn describe_window(
 #[cfg(target_os = "linux")]
 fn get_window_title(
     connection: &xcb::Connection,
-    window: xproto::Window,
+    window: x::Window,
 ) -> Result<String, CaptureError> {
-    let cookie = xproto::get_property(
-        connection,
-        false,
+    let cookie = connection.send_request(&x::GetProperty {
+        delete: false,
         window,
-        xproto::ATOM_WM_NAME,
-        xproto::ATOM_STRING,
-        0,
-        1024,
-    );
-    let reply = cookie
-        .get_reply()
+        property: x::ATOM_WM_NAME,
+        r#type: x::ATOM_STRING,
+        long_offset: 0,
+        long_length: 1024,
+    });
+    let reply = connection
+        .wait_for_reply(cookie)
         .map_err(|e| CaptureError::CaptureFailed(format!("get_property WM_NAME: {e}")))?;
-    Ok(String::from_utf8_lossy(reply.value()).into_owned())
+    Ok(String::from_utf8_lossy(reply.value::<u8>()).into_owned())
 }
 
 fn bits_per_pixel_for_depth(depth: u8) -> Option<u8> {
