@@ -48,9 +48,21 @@ jobs:
       - name: Install Linux capture dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb xauth
+          sudo apt-get install -y pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb xauth openbox x11-utils
       - uses: Swatinem/rust-cache@v2
-      - run: xvfb-run --auto-servernum cargo test --workspace --no-fail-fast
+      - name: Run tests in a virtual X11 desktop
+        run: |
+          xvfb-run --auto-servernum sh -ec '
+            openbox --sm-disable &
+            for attempt in $(seq 1 50); do
+              if xprop -root _NET_CLIENT_LIST_STACKING 2>/dev/null | grep -q "^_NET_CLIENT_LIST_STACKING(WINDOW)"; then
+                exec cargo test --workspace --no-fail-fast
+              fi
+              sleep 0.1
+            done
+            echo "Openbox did not publish _NET_CLIENT_LIST_STACKING" >&2
+            exit 1
+          '
 
   build:
     name: Build
