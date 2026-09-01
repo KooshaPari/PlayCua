@@ -396,7 +396,7 @@ impl Drop for ContainerDriver {
 pub fn to_wsl_path(host_path: &str) -> String {
     #[cfg(not(windows))]
     {
-        return host_path.to_string();
+        host_path.to_string()
     }
 
     #[cfg(windows)]
