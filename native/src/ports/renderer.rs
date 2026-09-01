@@ -152,7 +152,10 @@ mod tests {
             height: 128,
             data: vec![3u8; 128 * 128 * 4],
         };
-        let out = adapter.render(&frame).await.expect("wire render must succeed");
+        let out = adapter
+            .render(&frame)
+            .await
+            .expect("wire render must succeed");
         assert_eq!(out.width, 128);
         assert_eq!(out.height, 128);
     }

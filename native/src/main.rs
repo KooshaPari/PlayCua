@@ -58,7 +58,7 @@ async fn main() -> Result<(), AppError> {
     // `flag_set.is_enabled("...")`. Errors here are surfaced through
     // `AppError::Flag` (which maps to exit code 78, EX_CONFIG).
     let flag_set = FlagSet::from_env("PLAYCUA")?;
-    if flag_set.len() > 0 {
+    if !flag_set.is_empty() {
         info!(
             count = flag_set.len(),
             flags = ?flag_set.iter().collect::<Vec<_>>(),

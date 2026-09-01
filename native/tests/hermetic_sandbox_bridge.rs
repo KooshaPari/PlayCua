@@ -5,7 +5,7 @@
 //! `PLAYCUA_BRIDGE_BIN` at the fixture and exercises SandboxDriver spawn
 //! plus the shared-slot I/O path.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use playcua_native::adapters::sandbox::WireSandboxAdapter;
@@ -17,25 +17,30 @@ use playcua_native::ipc::BRIDGE_ENV_LOCK;
 use playcua_native::modality::sandbox::{SandboxBackend, SandboxDriver};
 
 fn fixture_bridge() -> PathBuf {
+    let fixture = if cfg!(windows) {
+        "fake-playcua-bridge.cmd"
+    } else {
+        "fake-playcua-bridge.sh"
+    };
     let mut candidates = vec![];
     if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
-        candidates.push(PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+        candidates.push(PathBuf::from(m).join("tests/fixtures").join(fixture));
     }
-    candidates.push(PathBuf::from("native/tests/fixtures/fake-playcua-bridge.sh"));
-    candidates.push(PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+    candidates.push(PathBuf::from("native/tests/fixtures").join(fixture));
+    candidates.push(PathBuf::from("tests/fixtures").join(fixture));
     candidates
         .into_iter()
         .find(|p| p.is_file())
-        .expect("fake-playcua-bridge.sh fixture must exist")
+        .expect("platform fake-playcua-bridge fixture must exist")
 }
 
-fn chmod_bridge(bin: &PathBuf) {
+fn chmod_bridge(_bin: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(bin).unwrap().permissions();
+        let mut perms = std::fs::metadata(_bin).unwrap().permissions();
         perms.set_mode(0o755);
-        std::fs::set_permissions(bin, perms).ok();
+        std::fs::set_permissions(_bin, perms).ok();
     }
 }
 
@@ -63,11 +68,7 @@ async fn fake_bridge_spawn_capture_input_windows() {
         .key_event(Key::new("a"), KeyAction::Press)
         .await
         .expect("input.key");
-    ports
-        .input()
-        .type_text("hello")
-        .await
-        .expect("input.type");
+    ports.input().type_text("hello").await.expect("input.type");
     ports
         .input()
         .mouse_event(MouseEvent::Click {
@@ -93,12 +94,16 @@ async fn fake_bridge_spawn_capture_input_windows() {
         .expect("windows.find");
     assert!(found.is_some());
 
-    ports.windows().focus_window(1).await.expect("windows.focus");
+    ports
+        .windows()
+        .focus_window(1)
+        .await
+        .expect("windows.focus");
 }
 
 #[tokio::test]
 async fn lazy_connect_uses_playcua_bridge_bin_env() {
-    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
@@ -120,7 +125,7 @@ async fn lazy_connect_uses_playcua_bridge_bin_env() {
 
 #[tokio::test]
 async fn shared_slot_uses_driver_spawned_bridge() {
-    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
@@ -154,7 +159,7 @@ async fn shared_slot_uses_driver_spawned_bridge() {
 
 #[tokio::test]
 async fn driver_spawn_bridge_then_ports() {
-    let _guard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     let bin = fixture_bridge();
     chmod_bridge(&bin);
     let prev = std::env::var("PLAYCUA_BRIDGE_BIN").ok();

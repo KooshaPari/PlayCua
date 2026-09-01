@@ -58,7 +58,11 @@ fn screenshot_dispatcher_returns_png_envelope() {
     // closed; an extra `monitor` or `timestamp` field would indicate
     // a contract drift that this test catches).
     let obj = env.as_object().expect("envelope must be a JSON object");
-    assert_eq!(obj.len(), 4, "envelope must have exactly 4 keys, got {obj:?}");
+    assert_eq!(
+        obj.len(),
+        4,
+        "envelope must have exactly 4 keys, got {obj:?}"
+    );
 }
 
 #[test]
@@ -68,10 +72,7 @@ fn screenshot_routes_to_capture_port() {
     // `capture_display`. This test encodes the routing rule as a
     // pure function and asserts both branches produce a `Frame`
     // envelope of the right shape.
-    fn route(
-        window_title: Option<&str>,
-        monitor: Option<u32>,
-    ) -> &'static str {
+    fn route(window_title: Option<&str>, monitor: Option<u32>) -> &'static str {
         match (window_title, monitor) {
             (Some(_), _) => "capture_window",
             (None, _) => "capture_display",

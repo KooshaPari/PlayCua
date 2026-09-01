@@ -74,11 +74,10 @@ async fn capture_wgc(title: &str) -> Result<Frame, CaptureError> {
             Graphics::{
                 Direct3D::D3D_DRIVER_TYPE_HARDWARE,
                 Direct3D11::{
-                    D3D11CreateDevice, ID3D11Device, ID3D11Texture2D, D3D11_CPU_ACCESS_READ,
-                    D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_MAPPED_SUBRESOURCE, D3D11_MAP_READ,
-                    D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
+                    D3D11CreateDevice, ID3D11Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                    D3D11_SDK_VERSION,
                 },
-                Dxgi::{Common::DXGI_SAMPLE_DESC, IDXGIDevice},
+                Dxgi::IDXGIDevice,
             },
             System::WinRT::Direct3D11::CreateDirect3D11DeviceFromDXGIDevice,
             UI::WindowsAndMessaging::FindWindowW,

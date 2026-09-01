@@ -115,10 +115,7 @@ impl Sandbox for WireSandboxAdapter {
             .get_mut(&handle.id)
             .ok_or_else(|| SandboxError::NotFound(handle.id.clone()))?;
         match driver.try_status() {
-            Ok(Some((running, exit_code))) => Ok(SandboxStatus {
-                running,
-                exit_code,
-            }),
+            Ok(Some((running, exit_code))) => Ok(SandboxStatus { running, exit_code }),
             Ok(None) => Err(SandboxError::StatusFailed(format!(
                 "driver for {} has no child",
                 handle.id
@@ -149,8 +146,8 @@ mod tests {
     /// Wire adapter fails loud when no backend is configured.
     #[tokio::test]
     async fn wire_sandbox_fails_loud_without_backend() {
-        let _guard = SANDBOX_ENV_LOCK.lock().expect("sandbox env lock");
-        let _bguard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+        let _guard = SANDBOX_ENV_LOCK.lock().await;
+        let _bguard = BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
         std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "not-a-real-backend");
         let adapter = WireSandboxAdapter::new();
@@ -172,8 +169,8 @@ mod tests {
     /// Missing bridge binary fails loud on spawn (no native host leak).
     #[tokio::test]
     async fn wire_sandbox_fails_loud_without_bridge() {
-        let _guard = SANDBOX_ENV_LOCK.lock().expect("sandbox env lock");
-        let _bguard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+        let _guard = SANDBOX_ENV_LOCK.lock().await;
+        let _bguard = BRIDGE_ENV_LOCK.lock().await;
         let prev_backend = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
         let prev_bridge = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "direct");
@@ -202,23 +199,32 @@ mod tests {
     /// Wire adapter + Direct backend + fake bridge actually spawns and kills.
     #[tokio::test]
     async fn wire_sandbox_direct_spawn_and_kill() {
-        let _guard = SANDBOX_ENV_LOCK.lock().expect("sandbox env lock");
-        let _bguard = BRIDGE_ENV_LOCK.lock().expect("bridge env lock");
+        let _guard = SANDBOX_ENV_LOCK.lock().await;
+        let _bguard = BRIDGE_ENV_LOCK.lock().await;
         let prev_backend = std::env::var("PLAYCUA_SANDBOX_BACKEND").ok();
         let prev_bridge = std::env::var("PLAYCUA_BRIDGE_BIN").ok();
         std::env::set_var("PLAYCUA_SANDBOX_BACKEND", "direct");
 
         let bin = {
+            let fixture = if cfg!(windows) {
+                "fake-playcua-bridge.cmd"
+            } else {
+                "fake-playcua-bridge.sh"
+            };
             let mut candidates = vec![];
             if let Ok(m) = std::env::var("CARGO_MANIFEST_DIR") {
-                candidates.push(std::path::PathBuf::from(m).join("tests/fixtures/fake-playcua-bridge.sh"));
+                candidates.push(
+                    std::path::PathBuf::from(m)
+                        .join("tests/fixtures")
+                        .join(fixture),
+                );
             }
-            candidates.push(std::path::PathBuf::from("native/tests/fixtures/fake-playcua-bridge.sh"));
-            candidates.push(std::path::PathBuf::from("tests/fixtures/fake-playcua-bridge.sh"));
+            candidates.push(std::path::PathBuf::from("native/tests/fixtures").join(fixture));
+            candidates.push(std::path::PathBuf::from("tests/fixtures").join(fixture));
             candidates
                 .into_iter()
                 .find(|p| p.is_file())
-                .expect("fake-playcua-bridge.sh")
+                .expect("platform fake-playcua-bridge fixture")
         };
         #[cfg(unix)]
         {

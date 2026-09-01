@@ -71,7 +71,7 @@ impl AppError {
     pub fn exit_code(&self) -> i32 {
         match self {
             AppError::Other(_) => 1,
-            AppError::Flag(_) => 78,    // EX_CONFIG
+            AppError::Flag(_) => 78,       // EX_CONFIG
             AppError::Validation(_) => 65, // EX_DATAERR
             AppError::Domain(_) => 2,
             AppError::Storage(_) => 74, // EX_IOERR

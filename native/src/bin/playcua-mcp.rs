@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use pheno_flags::FlagSet;
 use rmcp::transport::streamable_http_server::tower::StreamableHttpService;
 use rmcp::ServiceExt;
 use tracing::info;
@@ -80,7 +81,8 @@ async fn main() -> Result<()> {
     );
 
     // Wire the app once; the Arc is shared across all transports / clients.
-    let app = App::build(selected);
+    let flag_set = FlagSet::from_env("PLAYCUA")?;
+    let app = App::build(selected, &flag_set);
     let dispatcher = Arc::new(app.dispatcher);
 
     match args.transport.as_str() {
@@ -113,7 +115,7 @@ async fn serve_http(
         rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default()
             .into(),
         rmcp::transport::streamable_http_server::StreamableHttpServerConfig::default()
-            .with_stateful_mode(false),
+            .with_legacy_session_mode(false),
     );
     let router = axum::Router::new().nest_service(&path, svc);
     let addr: SocketAddr = format!("{}:{}", args.bind, args.port).parse()?;

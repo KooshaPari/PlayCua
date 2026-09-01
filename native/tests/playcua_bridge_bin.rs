@@ -39,21 +39,16 @@ fn bridge_bin() -> PathBuf {
                 .join("playcua-bridge"),
         );
     }
-    candidates
-        .into_iter()
-        .find(|p| p.is_file())
-        .expect(
-            "playcua-bridge binary missing — run \
+    candidates.into_iter().find(|p| p.is_file()).expect(
+        "playcua-bridge binary missing — run \
              `cargo build --locked -p playcua-native --bin playcua-bridge` first, \
              or invoke via `cargo test --locked -p playcua-native`",
-        )
+    )
 }
 
 #[tokio::test]
 async fn real_bridge_bin_screenshot_input_windows() {
-    let _guard = BRIDGE_ENV_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
+    let _guard = BRIDGE_ENV_LOCK.lock().await;
     // Hermetic screenshot/input for CI (avoid real OS injection); windows
     // use real guest adapters.
     let prev_stub = std::env::var("PLAYCUA_BRIDGE_STUB_SCREENSHOT").ok();
@@ -90,11 +85,7 @@ async fn real_bridge_bin_screenshot_input_windows() {
         .key_event(Key::new("a"), KeyAction::Press)
         .await
         .expect("input.key");
-    ports
-        .input()
-        .type_text("hello")
-        .await
-        .expect("input.type");
+    ports.input().type_text("hello").await.expect("input.type");
     ports
         .input()
         .mouse_event(MouseEvent::Click {

@@ -387,7 +387,9 @@ impl Drop for NvmsDriver {
         // exists; otherwise rely on kernel child reaping. We don't block on
         // shutdown here — Drop is sync — but we *do* send SIGTERM/start_kill
         // so the OS reclaims resources promptly.
-        if let Some(mut child) = self.child.take() {
+        if let Some(child) = self.child.take() {
+            #[cfg(not(unix))]
+            let mut child = child;
             #[cfg(unix)]
             {
                 let pid = child.id().unwrap_or(0) as i32;

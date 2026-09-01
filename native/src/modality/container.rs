@@ -343,7 +343,9 @@ impl ContainerDriver {
 
 impl Drop for ContainerDriver {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
+        if let Some(child) = self.child.take() {
+            #[cfg(not(unix))]
+            let mut child = child;
             #[cfg(unix)]
             {
                 let pid = child.id().unwrap_or(0) as i32;
@@ -394,7 +396,7 @@ impl Drop for ContainerDriver {
 pub fn to_wsl_path(host_path: &str) -> String {
     #[cfg(not(windows))]
     {
-        return host_path.to_string();
+        host_path.to_string()
     }
 
     #[cfg(windows)]
@@ -403,9 +405,7 @@ pub fn to_wsl_path(host_path: &str) -> String {
         // This check must come BEFORE the generic `\\`-prefix check
         // below — an extended path like `\\?\C:\foo` would otherwise
         // hit the "already UNC" branch and pass through unchanged.
-        let (stripped, _was_extended) = if let Some(rest) =
-            host_path.strip_prefix("\\\\?\\")
-        {
+        let (stripped, _was_extended) = if let Some(rest) = host_path.strip_prefix("\\\\?\\") {
             (rest, true)
         } else {
             (host_path, false)
@@ -439,7 +439,10 @@ pub fn to_wsl_path(host_path: &str) -> String {
 
         // Path must start with `\` or `/` to be a rooted path; if it
         // doesn't (e.g. just a drive-relative path), normalize.
-        let rest = rest.strip_prefix('\\').or_else(|| rest.strip_prefix('/')).unwrap_or(rest);
+        let rest = rest
+            .strip_prefix('\\')
+            .or_else(|| rest.strip_prefix('/'))
+            .unwrap_or(rest);
 
         // Translate backslashes -> forward slashes.
         let translated = rest.replace('\\', "/");
@@ -455,13 +458,19 @@ mod wsl_path_tests {
     #[cfg(windows)]
     #[test]
     fn uppercase_drive_translates() {
-        assert_eq!(to_wsl_path(r"C:\Users\koosh\.cache"), "/mnt/c/Users/koosh/.cache");
+        assert_eq!(
+            to_wsl_path(r"C:\Users\koosh\.cache"),
+            "/mnt/c/Users/koosh/.cache"
+        );
     }
 
     #[cfg(windows)]
     #[test]
     fn lowercase_drive_translates() {
-        assert_eq!(to_wsl_path(r"c:\Users\koosh\.cache"), "/mnt/c/Users/koosh/.cache");
+        assert_eq!(
+            to_wsl_path(r"c:\Users\koosh\.cache"),
+            "/mnt/c/Users/koosh/.cache"
+        );
     }
 
     #[cfg(windows)]

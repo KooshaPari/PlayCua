@@ -112,11 +112,7 @@ async fn handle_screenshot(id: Value, params: Value) -> Response {
         window_title: Option<String>,
         monitor: Option<u32>,
     }
-    let p: P = match serde_json::from_value(if params.is_null() {
-        json!({})
-    } else {
-        params
-    }) {
+    let p: P = match serde_json::from_value(if params.is_null() { json!({}) } else { params }) {
         Ok(v) => v,
         Err(e) => return Response::invalid_params(id, e.to_string()),
     };
@@ -201,10 +197,7 @@ async fn handle_input_key(id: Value, params: Value) -> Response {
         InputKeyAction::Down => KeyAction::Down,
         InputKeyAction::Up => KeyAction::Up,
     };
-    match native_input()
-        .key_event(Key::new(p.key), action)
-        .await
-    {
+    match native_input().key_event(Key::new(p.key), action).await {
         Ok(()) => input_ack(id),
         Err(e) => Response::internal_error(id, format_input_error("input.key", e)),
     }
@@ -349,10 +342,9 @@ async fn handle_windows_list(id: Value) -> Response {
             Ok(v) => Response::ok(id, v),
             Err(e) => Response::internal_error(id, e.to_string()),
         },
-        Err(e) => Response::internal_error(
-            id,
-            format!("windows.list failed (guest enumeration): {e}"),
-        ),
+        Err(e) => {
+            Response::internal_error(id, format!("windows.list failed (guest enumeration): {e}"))
+        }
     }
 }
 
@@ -362,11 +354,7 @@ async fn handle_windows_find(id: Value, params: Value) -> Response {
         title: Option<String>,
         pid: Option<u32>,
     }
-    let p: P = match serde_json::from_value(if params.is_null() {
-        json!({})
-    } else {
-        params
-    }) {
+    let p: P = match serde_json::from_value(if params.is_null() { json!({}) } else { params }) {
         Ok(v) => v,
         Err(e) => return Response::invalid_params(id, e.to_string()),
     };
@@ -381,10 +369,9 @@ async fn handle_windows_find(id: Value, params: Value) -> Response {
             Err(e) => Response::internal_error(id, e.to_string()),
         },
         Ok(None) => Response::ok(id, Value::Null),
-        Err(e) => Response::internal_error(
-            id,
-            format!("windows.find failed (guest enumeration): {e}"),
-        ),
+        Err(e) => {
+            Response::internal_error(id, format!("windows.find failed (guest enumeration): {e}"))
+        }
     }
 }
 
@@ -400,10 +387,7 @@ async fn handle_windows_focus(id: Value, params: Value) -> Response {
     let windows = native_windows();
     match windows.focus_window(p.hwnd).await {
         Ok(()) => Response::ok(id, json!({ "ok": true })),
-        Err(e) => Response::internal_error(
-            id,
-            format!("windows.focus failed: {e}"),
-        ),
+        Err(e) => Response::internal_error(id, format!("windows.focus failed: {e}")),
     }
 }
 
@@ -417,19 +401,13 @@ mod tests {
             jsonrpc: "2.0".into(),
             id: json!(1),
             method: method.into(),
-            params: if params.is_null() {
-                None
-            } else {
-                Some(params)
-            },
+            params: if params.is_null() { None } else { Some(params) },
         }
     }
 
     #[tokio::test]
     async fn screenshot_stub_env_returns_png_envelope() {
-        let _guard = BRIDGE_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _guard = BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var(STUB_SCREENSHOT_ENV).ok();
         let prev_input = std::env::var(STUB_INPUT_ENV).ok();
         std::env::set_var(STUB_SCREENSHOT_ENV, "1");
@@ -460,9 +438,7 @@ mod tests {
 
     #[tokio::test]
     async fn ping_reports_real_capabilities_when_stubs_unset() {
-        let _guard = BRIDGE_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _guard = BRIDGE_ENV_LOCK.lock().await;
         let prev_shot = std::env::var(STUB_SCREENSHOT_ENV).ok();
         let prev_input = std::env::var(STUB_INPUT_ENV).ok();
         std::env::remove_var(STUB_SCREENSHOT_ENV);
@@ -487,17 +463,12 @@ mod tests {
 
     #[tokio::test]
     async fn input_stub_env_acks_without_injection() {
-        let _guard = BRIDGE_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _guard = BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var(STUB_INPUT_ENV).ok();
         std::env::set_var(STUB_INPUT_ENV, "1");
 
         let cases = [
-            (
-                "input.key",
-                json!({ "key": "a", "action": "press" }),
-            ),
+            ("input.key", json!({ "key": "a", "action": "press" })),
             ("input.type", json!({ "text": "hello" })),
             (
                 "input.click",
@@ -530,9 +501,7 @@ mod tests {
 
     #[tokio::test]
     async fn input_invalid_params_fails_loud() {
-        let _guard = BRIDGE_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _guard = BRIDGE_ENV_LOCK.lock().await;
         let prev = std::env::var(STUB_INPUT_ENV).ok();
         // Even with stub, invalid params must fail before the stub path.
         std::env::set_var(STUB_INPUT_ENV, "1");
@@ -564,7 +533,11 @@ mod tests {
         let wins = list.result.expect("result");
         assert!(wins.is_array(), "windows.list must return a JSON array");
 
-        let found = handle_request(req("windows.find", json!({ "title": "___no_such_playcua_win___" }))).await;
+        let found = handle_request(req(
+            "windows.find",
+            json!({ "title": "___no_such_playcua_win___" }),
+        ))
+        .await;
         assert!(found.error.is_none(), "{:?}", found.error);
         assert!(found.result.unwrap().is_null());
 

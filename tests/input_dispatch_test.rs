@@ -61,7 +61,10 @@ fn input_key_click_move_route_via_input_port() {
     assert_eq!(parse_input_method("input.key"), Some(InputMethod::Key));
     assert_eq!(parse_input_method("input.type"), Some(InputMethod::Type));
     assert_eq!(parse_input_method("input.click"), Some(InputMethod::Click));
-    assert_eq!(parse_input_method("input.scroll"), Some(InputMethod::Scroll));
+    assert_eq!(
+        parse_input_method("input.scroll"),
+        Some(InputMethod::Scroll)
+    );
     assert_eq!(parse_input_method("input.move"), Some(InputMethod::Move));
 
     // `input.key` must route to `InputPort::dispatch_key` for every

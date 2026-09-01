@@ -196,7 +196,7 @@ impl PlayCuaMcp {
             return Err(ErrorData::new(code, msg, err.data));
         }
         let result = resp.result.unwrap_or(Value::Null);
-        Ok(CallToolResult::success(vec![Content::json(result)?]))
+        Ok(CallToolResult::success(vec![ContentBlock::json(result)?]))
     }
 }
 

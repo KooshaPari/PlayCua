@@ -177,13 +177,18 @@ mod tests {
             .await
             .expect("stdin flush should succeed");
 
-        let mut buf = [0_u8; 6];
+        let expected: &[u8] = if cfg!(windows) {
+            b"hello\r\n"
+        } else {
+            b"hello\n"
+        };
+        let mut buf = vec![0_u8; expected.len()];
         child
             .stdout
             .read_exact(&mut buf)
             .await
             .expect("stdout should echo input");
-        assert_eq!(&buf, b"hello\n");
+        assert_eq!(buf, expected);
 
         spawner.kill(child.id).await.expect("kill should succeed");
     }

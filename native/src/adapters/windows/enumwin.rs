@@ -132,7 +132,7 @@ fn enum_windows_sync() -> Result<Vec<WindowInfo>, WindowError> {
 fn set_foreground_sync(hwnd: usize) -> Result<(), WindowError> {
     use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::SetForegroundWindow};
     unsafe {
-        SetForegroundWindow(HWND(hwnd as *mut core::ffi::c_void));
+        let _ = SetForegroundWindow(HWND(hwnd as *mut core::ffi::c_void));
     }
     Ok(())
 }
